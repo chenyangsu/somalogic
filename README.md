@@ -105,12 +105,22 @@ This will create two separate files `./results/datasets/infe_418.csv` and `./res
    The protein columns are sorted by increasing p value so `protein_1` has the lowest p value and `protein_5284` has the highest
    p value (close to 1)
     ```
-    python make_dataset.py {infe/non_infe} {A2/A3/B2/C1}
+    python make_dataset.py --data {infe/non_infe} --outcome {A2/A3/B2/C1}
+   
+    # example run
+    python make_dataset.py --data infe --outcome A2
     ```
 2. Run models
     ```
-    python models.py
+    python models.py --data {infe/non-infe} --outcome {A2/A3/B2/C1} --model_type {lasso/elasticnet} --params_search {True/False}
+   
+    # example run
+    python models.py --data infe --outcome A2 --model_type lasso --params_search True 
     ```
+    Note: after running once with `--params_search True`, the model parameters will be saved as a `.pkl` file such as 
+    `somalogic/results/models/lasso_infe_A2_results.pkl` if the above command were run. Since the parameters are saved already,
+    subsequent runs should set `--params_search False` since `models.py` will directly load this `.pkl` file.
+    
 ### Directory Setup (High-Level Overview of Important Folders)
 - data
     - McGill-Richards-C-19 - SomaScan Data  `Raw SomaLogic Data Directory`
