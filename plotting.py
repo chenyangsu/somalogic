@@ -1,9 +1,15 @@
+"""
+TODO: Description of code
+"""
+
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 import seaborn as sns
 import os
 import numpy as np
 import math
+import pandas as pd
+from sklearn.metrics import auc
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # .../somalogic
 
@@ -13,8 +19,191 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # .../somalogic
 # individual AUC curves for all 50 experiments with best AUC curve darker than rest
 
 
-def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
+def plot_age_distribution(df, y, data, outcome):
+    """
+    Plots age distribution violin plot of cases vs. controls and males vs. females
+    :param df: The dataframe containing the samples and feature for age
+    :param data: the dataset used
+    :param y: the column of outcomes
+    :param outcome: the outcome used e.g. A2, A3, B2, C1
+    :return: a scatter plot
+    """
+    sns.set_theme(style="whitegrid")
+    dataframe = pd.concat([df, y], axis=1)
+    dataframe[outcome] = dataframe[outcome].map({1: 'Case', 0: 'Control'})  # replace 1 to case, 0 to control
+    dataframe['sex_M'] = dataframe['sex_M'].map({1: 'M', 0: 'F'})  # replace 1 to case, 0 to control
+
+    ax = sns.violinplot(x=outcome, y='age_at_diagnosis', hue='sex_M',
+                        palette=['tomato', 'dodgerblue'], data=dataframe)
+
+    ax.set_ylabel('Age')
+    ax.set_xlabel(f'{outcome} Outcome')
+    ax.legend(loc='best')
+    ax.set_title(f'{data} {outcome} age distribution')
+    plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_age_violin.png', bbox_inches='tight')
+    plt.show()
+
+# plots age distribution as a scatter plot by cases/controls
+# def plot_age_distribution(df, y, data, outcome):
+#     """
+#     Plots age distribution scatter plot of cases vs. controls
+#     :param df: The dataframe containing the samples and feature for age
+#     :param data: the dataset used
+#     :param y: the column of outcomes
+#     :param outcome: the outcome used e.g. A2, A3, B2, C1
+#     :return: a scatter plot
+#     """
+#     plt.subplots(figsize=(10, 8))
+#     cases = df[y == 1]
+#     controls = df[y == 0]
+#
+#     plt.scatter(list(range(cases.shape[0])), cases['age_at_diagnosis'], color='magenta', label='Cases')
+#     plt.scatter(list(range(controls.shape[0])), controls['age_at_diagnosis'], color='deepskyblue', label='Controls')
+#
+#     # plt.scatter
+#     plt.ylabel("Age")
+#     plt.xlabel("samples")
+#     plt.legend(loc='best')
+#     plt.title(f'{data} {outcome} age distribution')
+#     plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_age_scatter.png',
+#                     bbox_inches='tight')
+#     plt.show()
+
+
+# plot histogram
+def plot_protein_level_distribution(df, y, data, outcome, prot_list):
+    """
+    Plots protein level distribution in a violin plot by cases and controls and splitting into Male, Female
+    :param df: The design matrix
+    :param data: The dataset used e.g. infe, non_infe
+    :param y: the column of outcomes
+    :param outcome: the outcome of interest e.g. A2, A3, B2, C1
+    :param prot_list: the list of proteins who
+    :return:
+    """
+    sns.set_theme(style="whitegrid")
+
+    dataframe = pd.concat([df, y], axis=1)
+    dataframe[outcome] = dataframe[outcome].map({1: 'Case', 0: 'Control'})  # replace 1 to case, 0 to control
+    dataframe['sex_M'] = dataframe['sex_M'].map({1: 'M', 0: 'F'})  # replace 1 to case, 0 to control
+
+    for i in range(len(prot_list)):
+        ax = sns.violinplot(x=outcome, y=prot_list[i], hue='sex_M',
+                            palette=['tomato', 'dodgerblue'], data=dataframe)
+
+        ax.set_title(f'{data} {outcome} {prot_list[i]}')
+        ax.set_xlabel(f'{outcome} Outcome')
+        ax.set_ylabel('Protein level')
+        ax.legend(loc='best', shadow=False, scatterpoints=1)
+        plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{prot_list[i]}_violin.png', bbox_inches='tight')
+        plt.show()
+
+
+# # plot protein levels as 3 histograms overlaying on top of one another
+# def plot_protein_level_distribution(df, y, data, outcome, prot_list):
+#     """
+#     Plots protein level distribution in a histogram by all samples, cases, and controls
+#     :param df: The design matrix
+#     :param data: The dataset used e.g. infe, non_infe
+#     :param y: the column of outcomes
+#     :param outcome: the outcome of interest e.g. A2, A3, B2, C1
+#     :param prot_list: the list of proteins who
+#     :return:
+#     """
+#     alpha = 0.5
+#
+#     cases_df = df[y == 1]
+#     controls_df = df[y == 0]
+#
+#
+#     for i in range(len(prot_list)):
+#         d = df[prot_list[i]].dropna()  # drop NaN values
+#         cases = cases_df[prot_list[i]].dropna()  # drop NaN values
+#         controls = controls_df[prot_list[i]].dropna()  # drop NaN values
+#
+#         plt.hist(d, color='black', bins=40, histtype='step', alpha=alpha, label='All samples')
+#         plt.hist(cases, color='deepskyblue', bins=40, histtype='step', alpha=alpha, label='Cases')
+#         plt.hist(controls, color='magenta', bins=40, histtype='step', alpha=alpha, label='Controls')
+#
+#         plt.title(f'{data} {outcome} {prot_list[i]}')
+#         plt.xlabel('Protein level')
+#         plt.ylabel('Number of protein samples')
+#         plt.legend(loc='best', shadow=False, scatterpoints=1)
+#         plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{prot_list[i]}_hist.png', bbox_inches='tight')
+#         plt.show()
+
+
+# plot correlation plots
+def plot_correlation(df, y, data, outcome, prot_list):
     #TODO: docstring
+    if len(prot_list) > 1000:
+        font = 30
+        figure_size = (50, 42)
+    else:
+        font = 10
+        figure_size = (10, 8)
+
+    parameters = {'axes.labelsize': font * 2,
+                  'legend.fontsize': font * 2,
+                  'xtick.labelsize': font,
+                  'ytick.labelsize': font,
+                  'axes.titlesize': font * 2}
+    plt.rcParams.update(parameters)
+
+    cases = df.loc[y == 1]
+    controls = df.loc[y == 0]
+
+    plt.subplots(figsize=figure_size)
+
+    # All samples
+    df = df[prot_list]
+    corr = df.corr(method='spearman').abs()
+    sns.heatmap(corr, cmap='Blues')
+
+    plt.title(f"{data} {outcome} - All Samples (All proteins)")
+    plt.ylabel(r'$\leftarrow$ Increasing p value')
+    plt.xlabel(r'Increasing p value $\rightarrow $')
+    #plt.savefig(f'{data}_{outcome}_all_samples_spearman_correlation.png')
+    plt.show()
+
+    # Cases
+    plt.subplots(figsize=figure_size)
+
+    df = cases[prot_list]
+    corr = df.corr(method='spearman').abs()
+    sns.heatmap(corr, cmap='Blues')
+
+    plt.title(f"{data} {outcome} - Cases (All proteins)")
+    plt.ylabel(r'$\leftarrow$ Increasing p value')
+    plt.xlabel(r'Increasing p value $\rightarrow $')
+    #plt.savefig(f'{data}_{outcome}_cases_spearman_correlation.png')
+    plt.show()
+
+    # Controls
+    plt.subplots(figsize=figure_size)
+
+    df = controls[prot_list]
+    corr = df.corr(method='spearman').abs()
+    sns.heatmap(corr, cmap='Blues')
+
+    plt.title(f"{data} {outcome} - Controls (All proteins)")
+    plt.ylabel(r'$\leftarrow$ Increasing p value')
+    plt.xlabel(r'Increasing p value $\rightarrow $')
+    #plt.savefig(f'{data}_{outcome}_controls_spearman_correlation.png')
+    plt.show()
+
+# plot spearman correlation between proteins
+def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
+    """
+    Plots two figures: PC1 vs. PC2 clustering and a scree plot showing the variances explained per principal component
+    :param df: design matrix containing features of interest e.g. age, sex, proteins
+    :param y: outcomes
+    :param data: the dataset used e.g. infe, non_infe
+    :param outcome: the outcome name e.g. A2, A3, B2, C1
+    :param cluster_by: whether to cluster by samples or features
+    :param num_components:  the number of principal components
+    :return:
+    """
 
     # fill NaNs with column means or else PCA gets error
     df.fillna(df.mean(), inplace=True)  # fill na values with the mean
@@ -39,7 +228,7 @@ def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
 
         plt.subplots(figsize=(10, 8))
 
-        colors = ['cyan', 'magenta']
+        colors = ['deepskyblue', 'magenta']
         lw = 2
 
         for color, i, target_name in zip(colors, [0, 1], target_names):
@@ -49,8 +238,7 @@ def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
         plt.title(f'PCA of {data} {outcome} clustered by {cluster_by}')
         plt.xlabel('PC1')
         plt.ylabel('PC2')
-        plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{cluster_by}_pca.png',
-                    bbox_inches='tight')
+        plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{cluster_by}_pca.png', bbox_inches='tight')
         plt.show()
 
     else:
@@ -64,8 +252,7 @@ def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
     plt.ylabel('Explained Variance Ratio')
     plt.xticks(ticks=x)  # set xticks to integer values corresponding to PC component
     plt.title(f'Scree Plot of {data} {outcome} clustered by {cluster_by}')
-    plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{cluster_by}_pca_variance.png',
-                bbox_inches='tight')
+    plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{cluster_by}_pca_variance.png', bbox_inches='tight')
     plt.show()
 
     ## Save eigenvector of PCs
@@ -78,6 +265,7 @@ def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
 def plot_auc(model_type, data, outcome, hyperparams, model_results, colors):
     #TODO: Add docstring
 
+    sns.set_theme()
     # Here are some plot styles, which primarily make this plot larger for display purposes.
     plotting_params = {'axes.labelsize': 18,
                   'legend.fontsize': 16,
@@ -126,18 +314,28 @@ def plot_auc(model_type, data, outcome, hyperparams, model_results, colors):
         plt.show()
 
     elif model_type == 'elasticnet':
-        C_range = hyperparams['C']
-        lamb = [math.log10(1 / c) if c != 0 else c for c in C_range]
-        l1_ratio = hyperparams['l1_ratio']
-
+        # C_range = hyperparams['C']
+        # lamb = [math.log10(1 / c) if c != 0 else c for c in C_range]
+        # l1_ratio = hyperparams['l1_ratio']
+        pass
 
     else:
         raise NotImplementedError
 
 
-
 def plot_nonzero_coefficients(type, x_val, y_val, data, outcome, model_type, X_choice, color):
-    #TODO: add docstring
+    """
+    Plots the coefficient values of each variable in the model if the coefficient is nonzero.
+    :param type: Whether to plot nonzero coefficients, sorted nonzero coefficients, or sorted absolute value of the coefficients
+    :param x_val: values for the x-axis i.e. the coefficient values
+    :param y_val: values for the y-axis i.e. feature variable names corresponding to coefficient values on x-axis
+    :param data: the dataset used e.g. infe, non_infe
+    :param outcome: the outcome name e.g. A2, A3, B2, C1
+    :param model_type:
+    :param X_choice: The X dataframe used
+    :param color: colors for each plot
+    :return:
+    """
 
     sns.set_theme()
 
