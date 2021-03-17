@@ -1,5 +1,5 @@
 """
-Description of code
+TODO: Description of code
 """
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -9,15 +9,19 @@ import numpy as np
 import seaborn as sns
 import pickle
 from utils import boolean
+
 from plotting import plot_pca
 from plotting import plot_nonzero_coefficients
 from plotting import plot_auc
+from plotting import plot_age_distribution
+from plotting import plot_protein_level_distribution
+from plotting import plot_correlation
 
 sns.set_theme()
-
+from sklearn.metrics import plot_roc_curve
+from sklearn.metrics import auc
 from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.linear_model import LogisticRegressionCV
-from sklearn.metrics import plot_roc_curve
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import roc_auc_score
@@ -136,7 +140,13 @@ def lasso(C=1.0, random_state=0):
     return model
 
 def elasticnet(C=1.0, l1_ratio=0.0, random_state=0):
-    #TODO: docstring
+    """
+    L1 and L2 regularized logistic regression model
+    :param C: Amount of regularization. Corresponds to the inverse of lambda. E.g. if lambda = 10, then C = 0.1
+    :param l1_ratio: Amount of l1 regularization. If l1_ratio = 0.1, then l2_ratio must be 0.9
+    :param random_state: Seeding for reproducibility
+    :return: elasticnet model
+    """
 
     model = LogisticRegression(penalty='elasticnet', solver='saga', C=C, l1_ratio=l1_ratio, max_iter=10000, random_state=random_state)
     return model
@@ -144,6 +154,7 @@ def elasticnet(C=1.0, l1_ratio=0.0, random_state=0):
 
 def repeated_stratified_kfold_gridsearchcv(X,
                                            y,
+                                           X_choice,
                                            model_type='lasso',
                                            hyperparams={},
                                            n_splits=5,
@@ -263,9 +274,11 @@ if __name__ == "__main__":
 
     X, y = split_x_y(df, outcome)
     df = preprocess(X)  # age_at_diagnosis, sex_M, proteins
+    # Look at data
+    #plot_pca(df=df, y=y, data=data, outcome=outcome, cluster_by='samples', num_components=20)
+    #plot_age_distribution(df=df, y=y, data=data, outcome=outcome)
+    #plot_protein_level_distribution(df=df, y=y, data=data, outcome=outcome, prot_list=df.columns.tolist()[2:7])  # plot distribution of first 5 proteins
 
-    # plot_PCA
-    plot_pca(df=df, y=y, data=data, outcome=outcome, cluster_by='samples', num_components=20)
 
     X_choices = ['baseline', 'all_proteins', 'fdr_sig_proteins', 'ABO', 'CRP', 'ABO_CRP']
 
@@ -289,6 +302,7 @@ if __name__ == "__main__":
 
             best_params, cv_results = repeated_stratified_kfold_gridsearchcv(X,
                                                                              y,
+                                                                             X_choice=X_choice,
                                                                              hyperparams=hyperparams,
                                                                              model_type=model_type,
                                                                              n_splits=5,
@@ -308,16 +322,12 @@ if __name__ == "__main__":
         model_results = pickle.load(fp)
     print(model_results)
 
-
-    assert False
-
-
-    plot_auc(model_type=model_type,
-                    data=data,
-                    outcome=outcome,
-                    hyperparams=hyperparams,
-                    model_results=model_results,
-                    colors=colors)
+    # plot_auc(model_type=model_type,
+    #                 data=data,
+    #                 outcome=outcome,
+    #                 hyperparams=hyperparams,
+    #                 model_results=model_results,
+    #                 colors=colors)
 
     # use best hyperparameter to train on entire dataset
     for i, X_choice in enumerate(X_choices):
@@ -326,6 +336,85 @@ if __name__ == "__main__":
         clf = lasso(C=C, random_state=SEED)
         X = get_samples(df=df, data=data, outcome=outcome, choice=X_choice, fdr=0.01)
 
+        # plot CV ROC
+        #####################################
+
+        rskf = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=0)
+
+        fig, ax = plt.subplots(figsize=(10, 8))
+
+        mean_fpr = np.linspace(0, 1, 100)
+        tprs = []
+        aucs = []
+        cf_matrix = np.zeros((2, 2))
+        for i, (train_index, test_index) in enumerate(rskf.split(X, y)):
+            # print("TRAIN:", train_index, "TEST:", test_index)
+            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+            y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+
+            lr = lasso(C=C, random_state=SEED)
+
+            lr.fit(X_train, y_train)
+
+            viz = plot_roc_curve(lr, X_test, y_test,
+                                 name='ROC fold {}'.format(i),
+                                 alpha=0.3, lw=1, ax=ax)
+            interp_tpr = np.interp(mean_fpr, viz.fpr, viz.tpr)
+            interp_tpr[0] = 0.0
+            tprs.append(interp_tpr)
+            aucs.append(viz.roc_auc)
+        ax.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
+                label='Chance', alpha=.8)
+
+        mean_tpr = np.mean(tprs, axis=0)
+        mean_tpr[-1] = 1.0
+        mean_auc = auc(mean_fpr, mean_tpr)
+        std_auc = np.std(aucs)
+        ax.plot(mean_fpr, mean_tpr, color='b',
+                label=r'Mean ROC (AUC = %0.3f $\pm$ %0.3f)' % (mean_auc, std_auc),
+                lw=2, alpha=.8)
+
+        std_tpr = np.std(tprs, axis=0)
+        tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+        tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+        ax.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,
+                        label=r'$\pm$ 1 std. dev.')
+
+        ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
+               title=f"{X_choice} - Receiver operating characteristic")
+        # ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1),
+        #           fancybox=True, shadow=True, ncol=3, prop={'size':5})
+        ax.legend(bbox_to_anchor=(1, 1), fancybox=True, shadow=True, prop={'size': 6})
+        plt.show()
+        #
+        #
+        #
+        #     y_pred = lr.predict(X_test)  # get predictions
+        #
+        #     # Get the confusion matrix
+        #     cf_matrix = confusion_matrix(y_test, y_pred)
+        #     print(cf_matrix)
+
+
+        #
+        #     group_names = ['TN', 'FP', 'FN', 'TP']
+        #     group_counts = ['{0:0.0f}'.format(value) for value in
+        #                     cf_matrix.flatten()]
+        #     group_percentages = ['{0:.2%}'.format(value) for value in
+        #                          cf_matrix.flatten()/np.sum(cf_matrix)]
+        #     labels = [f'{v1}\n{v2}\n{v3}' for v1, v2, v3 in
+        #               zip(group_names,group_counts,group_percentages)]
+        #     labels = np.asarray(labels).reshape(2,2)
+        #     sns.heatmap(cf_matrix, annot=labels, fmt='', cmap='Blues',
+        #                 xticklabels=['Controls', 'Cases'],
+        #                yticklabels=['Controls', 'Cases'])
+        #     plt.xlabel('Predicted Values')
+        #     plt.ylabel('True Values')
+        #
+
+        assert False
+
+        ######################################
         clf.fit(X, y)
 
         coef, coef_names, nonzero_coef, nonzero_coef_names, \
@@ -341,5 +430,7 @@ if __name__ == "__main__":
         plot_nonzero_coefficients(type='abs_sorted_nonzero_coef', x_val=abs_sorted_nonzero_coef, y_val=abs_sorted_nonzero_coef_names,
                                   data=data, outcome=outcome, model_type=model_type, X_choice=X_choice, color=colors[i])
 
+        prot_list = [protein for protein in nonzero_coef_names if protein not in ['age_at_diagnosis', 'sex_M']]  # keep only proteins
 
-
+        if X_choice == 'all_proteins':
+            plot_correlation(df=X, y=y, data=data, outcome=outcome, prot_list=prot_list)
