@@ -7,3 +7,4 @@ scipy
 umap
 hdbscan
 openpyxl
+scikit-plot
