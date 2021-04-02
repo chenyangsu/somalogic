@@ -36,13 +36,13 @@ i <- 0
 formula <- A2 ~ age_at_diagnosis + sex + protein
 
 if (data == "infe") {  # set dat
-  dat <- read.csv(file = "./results/datasets/infe_418.csv")
-
+  dat <- read.csv(file = "./results/datasets/infe_417.csv")
+  
 } else if (data == "non_infe") {
-  dat <- read.csv(file = "./results/datasets/non_infe_418.csv")
+  dat <- read.csv(file = "./results/datasets/non_infe_219.csv")
   
 } else {
-  stop("The data inputted is incorrect. Select one of {infe, non_infe}.")
+  stop("The data inputted is incorrect. Select one of {infe, non_infe}.") 
 }
 
 prot_list <- colnames(dat[43:length(dat)])  # get all proteins
@@ -55,16 +55,16 @@ for (prot in prot_list) {
   protein <- dat[ , prot]  # KEY STEP or get error                               
   
   if (outcome == "A2") {
-    formula <- A2 ~ age_at_diagnosis + sex + protein
+    formula <- A2 ~ age_at_diagnosis + sex + SampleGroup + ProcessTime + protein 
     
   } else if (outcome == "A3") {
-    formula <- A3 ~ age_at_diagnosis + sex + protein 
+    formula <- A3 ~ age_at_diagnosis + sex + SampleGroup + ProcessTime + protein 
     
   } else if (outcome == "B2") {
-    formula <- B2 ~ age_at_diagnosis + sex + protein
+    formula <- B2 ~ age_at_diagnosis + sex + SampleGroup + ProcessTime + protein
     
   } else if (outcome == "C1") {
-    formula <- C1 ~ age_at_diagnosis + sex + protein 
+    formula <- C1 ~ age_at_diagnosis + sex + SampleGroup + ProcessTime + protein 
     
   } else{
     stop("The outcome inputted is incorrect. Select one of {A2, A3, B2, C1}.")
@@ -77,10 +77,10 @@ for (prot in prot_list) {
   
   a <- exp(cbind(OR = coef(logit), confint(logit)))  # transform log(odds) to odds
   
-  p <-sum_stat$coefficients[4, 4]  # get p value of protein
-  or <- a[4, 1]  # get odds ratio of protein
-  ci_low <- a[4, 2]  # get lower confidence interval of protein
-  ci_high <- a[4, 3]  # get higher confidence interval of protein
+  p <-sum_stat$coefficients[6, 4]  # get p value of protein
+  or <- a[6, 1]  # get odds ratio of protein
+  ci_low <- a[6, 2]  # get lower confidence interval of protein
+  ci_high <- a[6, 3]  # get higher confidence interval of protein
   
   df1 <- data.frame(Protein = c(prot),
                     OR = or,
@@ -94,8 +94,8 @@ df <- df[order(df$P), ]  # sort by increasing p value (smallest to largest p)
 
 df$FDRp <- p.adjust(df$P, method = "fdr", n = length(prot_list))  # Create column with FDR corrected p value (Benjamini-Hochberg method)
 
-file_name <- paste("./results/all_proteins/age+sex+protlevel/", data, outcome, "LR",            
-                   "age+sex+protlevel", "Analysis=all_proteins.xlsx", sep = "_")  # concatenates arguments by separator
+file_name <- paste("./results/all_proteins/age+sex+SampleGroup+ProcessTime+protlevel/", data, outcome, "LR",            
+                   "age+sex+SampleGroup+ProcessTime+protlevel", "Analysis=all_proteins.xlsx", sep = "_")  # concatenates arguments by separator
 
 message("Saving results to file = ", file_name)
 
@@ -114,8 +114,8 @@ p <- df[, ncol(df)-1]  # get second to last column which stores p values (the la
 
 names(p) <- "P"  # rename column head (required to be name "P" for use with qq.plink)
 
-output_file <- paste("./results/all_proteins/age+sex+protlevel/pvalues/", data, outcome, "LR",            
-                     "age+sex+protlevel", "pvalues.txt", sep = "_") 
+output_file <- paste("./results/all_proteins/age+sex+SampleGroup+ProcessTime+protlevel/pvalues/", data, outcome, "LR",            
+                     "age+sex+SampleGroup+ProcessTime+protlevel", "pvalues.txt", sep = "_") 
 
 message("Writing P values to file = ", output_file)
 
