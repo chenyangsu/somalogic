@@ -29,14 +29,17 @@ if __name__ == "__main__":
 
     data = config['data']
     outcome = config['outcome']
-    file_name = data + '_418.csv'
+    if data == "infe":
+        file_name = data + '_417.csv'
+    elif data == "non_infe":
+        file_name = data + '_219.csv'
 
     file = os.path.join(ROOT_DIR, 'results', 'datasets', file_name)
     df = pd.read_csv(file, low_memory=False)
 
-    dataset = f'_{data}_{outcome}_LR_age+sex+protlevel_Analysis=all_proteins.xlsx'  # dataset from association analysis
+    dataset = f'_{data}_{outcome}_LR_age+sex+SampleGroup+ProcessTime+protlevel_Analysis=all_proteins.xlsx'  # dataset from association analysis
 
-    variables = 'age+sex+protlevel'
+    variables = 'age+sex+SampleGroup+ProcessTime+protlevel'
 
     DATA_DIR = os.path.join(ROOT_DIR, 'results', 'all_proteins', variables)
     file_path = os.path.join(DATA_DIR, dataset)
@@ -45,11 +48,11 @@ if __name__ == "__main__":
 
     proteins = list(results.iloc[:, 0])  # get list of proteins sorted by increasing p value
 
-    col = ['age_at_diagnosis', 'sex', outcome] + proteins
+    col = ['age_at_diagnosis', 'sex', 'SampleGroup', 'ProcessTime', outcome] + proteins
 
     df = df[col]
 
-    save_file = data + '_' + outcome + '_LR_age+sex+protlevel.csv'
+    save_file = data + '_' + outcome + '_LR_age+sex+SampleGroup+ProcessTime+protlevel.csv'
 
     file_to_save = os.path.join(ROOT_DIR, 'results', 'datasets', save_file)
 
