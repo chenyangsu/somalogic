@@ -69,7 +69,6 @@ def preprocess(df, prot_list, nat_log_transf):
     # df.fillna(df.mean(), inplace=True)  # fill na values with the mean
     return df
 
-
 def get_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
