@@ -163,6 +163,8 @@ def plot_correlation(df, y, data, outcome, prot_list):
     plt.title(f"{data} {outcome} - All Samples (All proteins)")
     plt.ylabel(r'$\leftarrow$ Increasing p value')
     plt.xlabel(r'Increasing p value $\rightarrow $')
+    plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
+    plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
     #plt.savefig(f'{data}_{outcome}_all_samples_spearman_correlation.png')
     plt.show()
 
@@ -192,6 +194,7 @@ def plot_correlation(df, y, data, outcome, prot_list):
     #plt.savefig(f'{data}_{outcome}_controls_spearman_correlation.png')
     plt.show()
 
+
 # plot spearman correlation between proteins
 def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
     """
@@ -209,7 +212,7 @@ def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
     df.fillna(df.mean(), inplace=True)  # fill na values with the mean
 
     col_names = df.columns.to_list()  # get column names: age_at_diagnosis, sex_M, protein_1, ..., protein_5284
-    proteins = col_names[2:]
+    proteins = col_names[4:]
     X = df[proteins]  # get protein columns
     target_names = ['Controls', 'Cases']
 
@@ -277,12 +280,13 @@ def plot_auc(model_type, data, outcome, hyperparams, model_results, colors):
 
     if model_type == 'lasso':
         C_range = hyperparams['C']
-        lamb = [math.log10(1 / c) if c != 0 else c for c in C_range]
+        log_10_lamb = [math.log10(1 / c) if c != 0 else c for c in C_range]
 
         for i, choice in enumerate(model_results):  # iterate through keys which are the data set choices
+
             cv_results = model_results[choice]
-            x = lamb
-            y = list(cv_results['mean_test_score'])
+            x = log_10_lamb
+            y = list(cv_results['mean_val_score'])
 
             plt.plot(x, y, lw=4, color=colors[i], label=f'{choice}')
 
@@ -290,19 +294,24 @@ def plot_auc(model_type, data, outcome, hyperparams, model_results, colors):
             ymax = max(y)
             xpos = y.index(ymax)
             xmax = x[xpos]
+            xmax = 10**xmax  # convert to actual lambda value
             plt.ylim(top=1)  # set y axis max value to 1
 
             # Plot a dotted vertical line at the best score for that scorer marked by x
-            plt.plot([lamb[y.index(max(y))]] * 2, np.linspace(0, max(y), 2),
+            plt.plot([log_10_lamb[y.index(max(y))]] * 2, np.linspace(0, max(y), 2),
                      linestyle='-.', color=colors[i], marker='x', markeredgewidth=3, ms=8)
 
             # Annotate the best score for that scorer
-            plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
-                         (lamb[y.index(max(y))], max(y) + 0.01))
+            if choice == 'fdr_sig_proteins':
+                plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
+                             (log_10_lamb[y.index(max(y))], max(y) + 0.02))
+            else:
+                plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
+                         (log_10_lamb[y.index(max(y))], max(y) + 0.01))
 
-            plt.fill_between(lamb, cv_results['mean_test_score'] - cv_results['std_test_score'],
-                             cv_results['mean_test_score'] + cv_results['std_test_score'],
-                             alpha=0.1, color=colors[i])
+            plt.fill_between(log_10_lamb, np.array(cv_results['mean_val_score']) - np.array(cv_results['std_val_score']),
+                     np.array(cv_results['mean_val_score']) + np.array(cv_results['std_val_score']),
+                     alpha=0.1, color=colors[i])
 
         plt.ylim(bottom=0.4)
         plt.xlabel('Strength of regularization ($log_{10}(\lambda$))')
