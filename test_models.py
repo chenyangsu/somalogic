@@ -103,9 +103,7 @@ if __name__ == "__main__":
 
     file_path = TEST_DIR + '/' + 'test.csv'
     df = pd.read_csv(file_path, low_memory=False)
-
     X, y = split_x_y(df, outcome)  # split out outcome column
-
     # Use pickle to load the ordered list of proteins from training set
     X_choice = 'all_proteins'
     prot_list_file = f'{FINAL_MODEL_DIR}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_proteins.pkl'
@@ -123,6 +121,7 @@ if __name__ == "__main__":
         model = pickle.load(open(final_model_results_path, 'rb'))
 
         X_test = get_samples(df=df, data=data, outcome=outcome, choice=X_choice, fdr=0.01)
+        X_test_transf = X_test.copy()
 
         if X_choice == 'all_proteins':
 
@@ -130,7 +129,6 @@ if __name__ == "__main__":
             scaler_file = f'{FINAL_MODEL_DIR}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_scaler.pkl'
             scaler = pickle.load(open(scaler_file, 'rb'))
 
-            X_test_transf = X_test.copy()
             features = X_test_transf[prot_list]
             features = scaler.transform(features.values)
             X_test_transf[prot_list] = features
@@ -138,13 +136,16 @@ if __name__ == "__main__":
             test_auc = roc_auc_score(y, model.predict_proba(X_test_transf)[:, 1])
 
         elif X_choice == 'baseline':  # don't standardize (since don't have proteins) and directly fit on X
-            test_auc = roc_auc_score(y, model.predict_proba(X_test)[:, 1])
+            test_auc = roc_auc_score(y, model.predict_proba(X_test_transf)[:, 1])
 
         print(f"{X_choice} Test AUC score: {test_auc}")
 
         # result = loaded_model.score(X_test, Y_test)
         # print(result)
 
+        # get predictions
+        predictions = model.predict_proba(X_test_transf)
+
         # plot roc curve
-        skplt.metrics.plot_roc_curve(y, model.predict_proba(X_test_transf)[:, 1])
+        skplt.metrics.plot_roc(y, predictions)
         plt.show()
