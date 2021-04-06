@@ -191,8 +191,10 @@ All protein levels should be the raw values in the original SomaLogic Normalized
 1. Store your SomaLogic Normalized dataset under `somalogic/results/datasets/test`.
     ```
     cd somalogic
-    mkdir ./results/datasets/test
-    # store test.csv dataset here 
+    mkdir -p results/datasets
+    mkdir -p results/datasets/test
+    cd results/datasets/test
+    # store test.csv dataset in results/datasets/test directory
     ```
 1. Test model on A2 and A3 outcomes
     ```
