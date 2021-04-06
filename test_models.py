@@ -138,7 +138,7 @@ if __name__ == "__main__":
             test_auc = roc_auc_score(y, model.predict_proba(X_test_transf)[:, 1])
 
         elif X_choice == 'baseline':  # don't standardize (since don't have proteins) and directly fit on X
-            test_auc = roc_auc_score(y, model.predict_proba(X_test_transf)[:, 1])
+            test_auc = roc_auc_score(y, model.predict_proba(X_test)[:, 1])
 
         print(f"{X_choice} Test AUC score: {test_auc}")
 
