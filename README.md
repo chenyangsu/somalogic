@@ -198,5 +198,5 @@ All protein levels should be the raw values in the original SomaLogic Normalized
     ```
 1. Test model on A2 and A3 outcomes
     ```
-    python test_models.py -- soma_data normalized --nat_log_transf True --standardize True --data infe --outcome {A2/A3} --model_type lasso
+    python test_models.py --soma_data normalized --nat_log_transf True --standardize True --data infe --outcome {A2/A3} --model_type lasso
     ```
