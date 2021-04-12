@@ -48,6 +48,7 @@ pd.set_option('display.width', 1000)
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # .../somalogic
 DAT_DIR = os.path.join(ROOT_DIR, 'results', 'datasets')  # .../somalogic/results/datasets
 # FDR_DAT_DIR = os.path.join(ROOT_DIR, 'results', 'all_proteins', 'age+sex+SampleGroup+ProcessTime+protlevel')
+PROT_LIST = os.path.join(ROOT_DIR, 'data', 'Somalogic_list_QC1.txt')
 SEED = 0
 
 
@@ -73,7 +74,16 @@ def preprocess(df, nat_log_transf):
     :return: The preprocessed dataframe
     """
     var = df[['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]
-    prot = df.iloc[:, 41:]  # proteins
+
+    # read in text file of proteins (4984 proteins)
+    with open(PROT_LIST) as f:
+        protein = f.readlines()
+    prot_list = [x.strip() for x in protein]
+    print(prot_list)
+    print(len(prot_list))
+
+    prot = df[prot_list] # proteins
+
     var = pd.get_dummies(var)  # convert categorical variables to dummy variables
 
     var.drop('sex_F', axis=1, inplace=True)  # drop one of dummy variables to prevent multicollinearity
@@ -90,6 +100,7 @@ def preprocess(df, nat_log_transf):
     df = pd.concat([var, prot], axis=1)  # merge dataframes by column
 
     # df.fillna(df.mean(), inplace=True)  # fill na values with the mean
+
     return df
 
 
@@ -446,7 +457,7 @@ if __name__ == "__main__":
                     hyperparams=hyperparams,
                     model_results=model_results,
                     colors=colors)
-
+    assert False
     # use best hyperparameter to train on entire dataset
 
     # create directory for saving final model
