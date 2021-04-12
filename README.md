@@ -18,7 +18,7 @@ Install Python
     pip install -r requirements.txt
     ```
    
-## Training
+## Intial Analysis
 ### Basic SomaLogic Data Download and Directory Setup
 
 1. Set up directory
@@ -144,6 +144,11 @@ Furthermore, we will generate qq plots of the p values.
     cd results/all_proteins/age+sex+SampleGroup+ProcessTime+protlevel/pvalues
     mv *.qq.png ../qqplots
     ```
+
+## Training
+- Our original list contains 5284 SomaLogic SOMAmers. 
+For this analysis, we remove `NoneX.*`, `NonHuman`, `Spuriomer`, `HybControlElution`, `NonBiotin`, `NonCleavable` 
+from the list to get a total of **4984 proteins**. This text file of proteins is stored as `somalogic/data/Somalogic_list_QC1.txt`
 
 ### Regularized Association Analysis with different covariates
 <!-- # Used only if want to also model FDR proteins
