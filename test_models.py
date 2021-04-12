@@ -45,7 +45,11 @@ def preprocess(df, prot_list, nat_log_transf):
     :param prot_list: list of protein names in the same order as in the training set
     :return: The preprocessed dataframe
     """
+    #TODO: Add try except block to catch if ProcessTime or SampleGroup don't exist
+    #TODO: check Edgar protein list is in our proteins
+    #TODO: Remove NoneX proteins and retrain
     var = df[['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]
+
     prot = df[prot_list]  # use prot_list to order proteins test set in correct order
     var = pd.get_dummies(var)  # convert categorical variables to dummy variables
 
@@ -56,6 +60,10 @@ def preprocess(df, prot_list, nat_log_transf):
     # is from a single hospital
     # var.drop('SampleGroup_CHUM', axis=1, inplace=True)
 
+    cols = {'SampleGroup.*': 'SampleGroup'}  # https://stackoverflow.com/a/46707076
+    var.columns = var.columns.to_series().replace(cols, regex=True)
+
+    assert False
     # rename whatever SampleGroup_* column you have to SampleGroup (i.e. change SampleGroup_JGH to the name of your SampleGroup_* column)
     var = var.rename({'SampleGroup_JGH': 'SampleGroup'}, axis='columns')  # rename SampleGroup_JGH to SampleGroup
 
