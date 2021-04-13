@@ -1,13 +1,12 @@
 # SomaLogic 
 
 ## Installation
-Install Python 
-
-    ```
-    sudo apt update -y
-    sudo apt install python3.7
-    ```
- 
+Install Python
+```
+sudo apt update -y
+sudo apt install python3.7
+```
+    
 ### Python Environment
 1. Create python virtual environment with `virtualenv` and install pip dependencies:
     ```
