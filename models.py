@@ -549,12 +549,6 @@ if __name__ == "__main__":
 
         if X_choice == 'all_proteins':  # standardize protein levels (skipped if X_choice='baseline' dataset)
             features_to_scale = list(X.columns)
-            features_to_scale.remove('age_at_diagnosis')
-            features_to_scale.remove('sex_M')
-            features_to_scale.remove('ProcessTime')
-            features_to_scale.remove('SampleGroup')  # drop since want to standardize proteins only
-
-            print(features_to_scale)  # features_to_scale should be a list of all 5284 protein names
 
             for feature in features_to_scale:
                 summary = {}
@@ -562,6 +556,14 @@ if __name__ == "__main__":
                 summary['std'] = X[feature].std(axis=0, ddof=0)  # ddof=0 (default = 1) to be consistent with StandardScaler()
                 complete_summary[feature] = summary  # store dictionary containing mean and std of protein inside dictionary
 
+            print(complete_summary)
+
+            features_to_scale.remove('age_at_diagnosis')
+            features_to_scale.remove('sex_M')
+            features_to_scale.remove('ProcessTime')
+            features_to_scale.remove('SampleGroup')  # drop since want to standardize proteins only
+
+            print(features_to_scale)  # features_to_scale should be a list of all 5284 protein names
             # See what model coefficient values are if final training done on standardized vs. nonstandardized data
             X_transf = X.copy()
             features = X_transf[features_to_scale]
