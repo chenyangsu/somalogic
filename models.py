@@ -414,10 +414,10 @@ if __name__ == "__main__":
 
     # colors = ['#d53e4f', 'lightcoral', 'blue', 'purple', 'lime', '#fee08b', '#fc8d59']
     colors = ['#d53e4f', 'blue']
-    model_results = {}
+    cv_results = {}
 
     model_dir = os.path.join(ROOT_DIR, 'results', 'models')
-    model_results_path = f'{model_dir}/{model_type}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_cv_results.pkl'
+    cv_results_path = f'{model_dir}/{model_type}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_cv_results.pkl'
 
     if config['params_search']:  # run hyperparam search and save model results
 
@@ -435,25 +435,25 @@ if __name__ == "__main__":
                                                                 n_splits=5,
                                                                 n_repeats=10,
                                                                 random_state=SEED)
-            model_results[X_choice] = cv_results
+            cv_results[X_choice] = cv_results
 
         # save model parameters
-        with open(model_results_path, 'wb') as fp:
-            pickle.dump(model_results, fp, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(cv_results_path, 'wb') as fp:
+            pickle.dump(cv_results, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
-        print(f'...Model results saved at {model_results_path}')
+        print(f'...Model results saved at {cv_results_path}')
 
     # load model parameters
-    with open(model_results_path, 'rb') as fp:
-        model_results = pickle.load(fp)
-    print(model_results.keys())
-    print(model_results)
+    with open(cv_results_path, 'rb') as fp:
+        cv_results = pickle.load(fp)
+    print(cv_results.keys())
+    print(cv_results)
 
     plot_auc(model_type=model_type,
                     data=data,
                     outcome=outcome,
                     hyperparams=hyperparams,
-                    model_results=model_results,
+                    cv_model_results=cv_results,
                     colors=colors)
 
     # use best hyperparameter to train on entire dataset
@@ -465,7 +465,7 @@ if __name__ == "__main__":
     complete_summary = {}  # for storing the mean and std of each protein
     for i, X_choice in enumerate(X_choices):
 
-        C = model_results[X_choice]['best_hyperparam']['C']
+        C = cv_results[X_choice]['best_hyperparam']['C']
         clf = lasso(C=C, random_state=SEED)
         X = get_samples(df=df, data=data, outcome=outcome, choice=X_choice, fdr=0.01)
 
@@ -602,6 +602,13 @@ if __name__ == "__main__":
 
         plot_nonzero_coefficients(type='abs_sorted_nonzero_coef', x_val=abs_sorted_nonzero_coef, y_val=abs_sorted_nonzero_coef_names,
                                   data=data, outcome=outcome, model_type=model_type, X_choice=X_choice, color=colors[i])
+
+        # save model coefficients
+        model_coef_results = dict(zip(nonzero_coef_names, nonzero_coef))
+        print(model_coef_results)
+        model_coef_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_coef.pkl'
+        with open(model_coef_file, 'wb') as fp:
+            pickle.dump(model_coef_results, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
         # plot spearman correlation of coefficients
         nonzero_prot_list = [protein for protein in nonzero_coef_names if protein not in ['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup']]  # keep only proteins
