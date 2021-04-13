@@ -158,18 +158,8 @@ if __name__ == "__main__":
 
         if X_choice == 'all_proteins':
 
-            # load the StandardScaler and standardize on dataset (protein columns only)
-            scaler_file = f'{FINAL_MODEL_DIR}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_scaler.pkl'
-            scaler = pickle.load(open(scaler_file, 'rb'))
-
-
-            print((X['CRYBB2.10000.28'] - complete_summary['CRYBB2.10000.28']['mean']) / complete_summary['CRYBB2.10000.28']['std'] )
-
-
-
-            features = X_test_transf[prot_list]
-            features = scaler.transform(features.values)
-            X_test_transf[prot_list] = features
+            for p in coefficients:  # for each protein, standardize based on mean and std from training set
+                X_test_transf[p] = (X_test_transf[p] - model_coef[p]['mean']) / model_coef[p]['std']
 
             test_auc = roc_auc_score(y, model.predict_proba(X_test_transf)[:, 1])
 
