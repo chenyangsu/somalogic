@@ -204,3 +204,8 @@ All protein levels should be the raw values in the original SomaLogic Normalized
     ```
     python test_models.py --soma_data normalized --nat_log_transf True --standardize True --data infe --outcome {A2/A3} --model_type lasso
     ```
+
+## Comparison
+File: `protein_comparison.ipynb`
+- Compares proteins in Training and Testing set
+- Looks at coefficients of trained models
