@@ -269,7 +269,7 @@ def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
     # df.to_csv(f"./{data}_{outcome}_{cluster_by}_pcs.csv")
 
 
-def plot_auc(model_type, data, outcome, hyperparams, model_results, colors):
+def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
     #TODO: Add docstring
 
     sns.set_theme()
@@ -286,9 +286,9 @@ def plot_auc(model_type, data, outcome, hyperparams, model_results, colors):
         C_range = hyperparams['C']
         log_10_lamb = [math.log10(1 / c) if c != 0 else c for c in C_range]
 
-        for i, choice in enumerate(model_results):  # iterate through keys which are the data set choices
+        for i, choice in enumerate(cv_model_results):  # iterate through keys which are the data set choices
 
-            cv_results = model_results[choice]
+            cv_results = cv_model_results[choice]
             x = log_10_lamb
             y = list(cv_results['mean_val_score'])
 
