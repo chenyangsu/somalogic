@@ -60,7 +60,6 @@ def preprocess(df, scaler_dict, coefficients, nat_log_transf):
         var = var[['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]  # reorder columns
 
     var = pd.get_dummies(var)  # convert categorical variables to dummy variables
-    print(var.head())  # use this to check column headers
     var.drop('sex_F', axis=1, inplace=True)  # drop one of dummy variables to prevent multicollinearity
     # If SampleGroup has more than 2 columns, drop one of them but I assume there will only be one column since your data
     # is from a single hospital
@@ -88,7 +87,7 @@ def preprocess(df, scaler_dict, coefficients, nat_log_transf):
     prot = prot[coefficients]  # reorder proteins
 
     df = pd.concat([var, prot], axis=1)  # merge dataframes by column
-
+    print(df.head())
     # df.fillna(df.mean(), inplace=True)  # fill na values with the mean
     return df
 
@@ -145,7 +144,6 @@ if __name__ == "__main__":
     df = preprocess(X, scaler_dict, coefficients, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284 (same order of proteins as in training set)
 
     X_choices = ['baseline', 'all_proteins']
-
 
     for X_choice in X_choices:
 
