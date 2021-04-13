@@ -21,6 +21,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # .../somalogic
 DAT_DIR = os.path.join(ROOT_DIR, 'results', 'datasets')  # .../somalogic/results/datasets
 TEST_DIR = os.path.join(DAT_DIR, 'test')  # .../somalogic/results/datasets/test
 FINAL_MODEL_DIR = os.path.join(ROOT_DIR, 'results', 'models', 'final')
+TEST_PROT_LIST = os.path.join(ROOT_DIR, 'data', 'mssm_protein_list.csv')
 
 
 def split_x_y(df, outcome):
@@ -36,41 +37,55 @@ def split_x_y(df, outcome):
     return x, y
 
 
-def preprocess(df, prot_list, nat_log_transf):
+def preprocess(df, scaler_dict, coefficients, nat_log_transf):
     """
     Takes data and one-hot encodes dummy variables (e.g. sex becomes sex_F, sex_M) and drops
     one of the dummy variables (e,g, here sex_F is dropped) to prevent multicollinearity.
     Finally, it sorts the columns into order: age_at_diagnosis, sex_M, proteins
     :param df: The dataframe to be processed
-    :param prot_list: list of protein names in the same order as in the training set
+    :param scaler_dict: The dictionary containing mean and std of each feature from training set
+    :param coefficients: list containing the protein coefficients (clinical features removed) of the trained model
     :return: The preprocessed dataframe
     """
-    #TODO: Add try except block to catch if ProcessTime or SampleGroup don't exist
-    #TODO: check Edgar protein list is in our proteins
-    #TODO: Remove NoneX proteins and retrain
-    var = df[['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]
+    ###### clinical features ######
+    # try except block to catch if ProcessTime doesn't exist
+    try:
+        var = df[['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]
+    except:
+        var = df[['age_at_diagnosis', 'sex', 'SampleGroup']]
+        mean_process_time = scaler_dict['ProcessTime']['mean']  # get mean value from training ProcessTime feature
 
-    prot = df[prot_list]  # use prot_list to order proteins test set in correct order
+        process_time = pd.Series([mean_process_time] * var.shape[0])  # create list with num_rows elements and convert to Series
+        var['ProcessTime'] = process_time
+        var = var[['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]  # reorder columns
+
     var = pd.get_dummies(var)  # convert categorical variables to dummy variables
-
     print(var.head())  # use this to check column headers
     var.drop('sex_F', axis=1, inplace=True)  # drop one of dummy variables to prevent multicollinearity
-
     # If SampleGroup has more than 2 columns, drop one of them but I assume there will only be one column since your data
     # is from a single hospital
-    # var.drop('SampleGroup_CHUM', axis=1, inplace=True)
 
+    # rename to SampleGroup
     cols = {'SampleGroup.*': 'SampleGroup'}  # https://stackoverflow.com/a/46707076
-    var.columns = var.columns.to_series().replace(cols, regex=True)
+    var.columns = var.columns.to_series().replace(cols, regex=True)  # replace SampleGroup_... to SampleGroup
 
-    assert False
-    # rename whatever SampleGroup_* column you have to SampleGroup (i.e. change SampleGroup_JGH to the name of your SampleGroup_* column)
-    var = var.rename({'SampleGroup_JGH': 'SampleGroup'}, axis='columns')  # rename SampleGroup_JGH to SampleGroup
+    ###### proteins ######
+    test_sum_stats = pd.read_csv(TEST_PROT_LIST, low_memory=False)
+    test_prot_list = test_sum_stats['c'].tolist()  # Mt. Sinai list of proteins
 
-    var = var[['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup']]  # resort columns to this order
-
-    if nat_log_transf:
+    prot = df[test_prot_list]
+    if nat_log_transf:  # first natural log the protein levels
         prot = prot.apply(np.log, axis=1)  # equiv to df.sum(1)
+
+    # list of proteins in model that isn't in Mt. Sinai proteins
+    extra_prot = [coef for coef in coefficients if coef not in test_prot_list]
+
+    for p in extra_prot:  # Add proteins in model that aren't in test set to the test set and use the mean value from training
+        prot_val = scaler_dict[p]['mean']  # get mean value from training
+        prot_series = pd.Series([prot_val] * df.shape[0])  # create list with num_rows elements and convert to Series
+        prot[p] = prot_series  # add protein to dataframe
+
+    prot = prot[coefficients]  # reorder proteins
 
     df = pd.concat([var, prot], axis=1)  # merge dataframes by column
 
@@ -112,15 +127,25 @@ if __name__ == "__main__":
     file_path = TEST_DIR + '/' + 'test.csv'
     df = pd.read_csv(file_path, low_memory=False)
     X, y = split_x_y(df, outcome)  # split out outcome column
-    # Use pickle to load the ordered list of proteins from training set
-    X_choice = 'all_proteins'
-    prot_list_file = f'{FINAL_MODEL_DIR}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_proteins.pkl'
-    prot_list = pickle.load(open(prot_list_file, 'rb'))
 
-    # df needs to have protein columns in exact same order as training dataset for StandardScaler() below to give accurate results
-    df = preprocess(X, prot_list, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284 (same order of proteins as in training set)
+    X_choice = 'all_proteins'
+
+    # load the scaler dictionary and standardize on dataset (protein columns only)
+    scaler_file = f'{FINAL_MODEL_DIR}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_scaler.pkl'
+    scaler_dict = pickle.load(open(scaler_file, 'rb'))
+
+    model_coef_file = f'{FINAL_MODEL_DIR}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_coef.pkl'
+    model_coef = pickle.load(open(model_coef_file, 'rb'))
+
+    coefficients = list(model_coef.keys())
+    # leave only protein names
+    coefficients = [coef for coef in coefficients if
+                    coef not in ['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]
+
+    df = preprocess(X, scaler_dict, coefficients, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284 (same order of proteins as in training set)
 
     X_choices = ['baseline', 'all_proteins']
+
 
     for X_choice in X_choices:
 
