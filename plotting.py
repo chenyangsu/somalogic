@@ -178,6 +178,8 @@ def plot_correlation(df, y, data, outcome, prot_list):
     plt.title(f"{data} {outcome} - Cases (All proteins)")
     plt.ylabel(r'$\leftarrow$ Increasing p value')
     plt.xlabel(r'Increasing p value $\rightarrow $')
+    plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
+    plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
     #plt.savefig(f'{data}_{outcome}_cases_spearman_correlation.png')
     plt.show()
 
@@ -191,6 +193,8 @@ def plot_correlation(df, y, data, outcome, prot_list):
     plt.title(f"{data} {outcome} - Controls (All proteins)")
     plt.ylabel(r'$\leftarrow$ Increasing p value')
     plt.xlabel(r'Increasing p value $\rightarrow $')
+    plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
+    plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
     #plt.savefig(f'{data}_{outcome}_controls_spearman_correlation.png')
     plt.show()
 
