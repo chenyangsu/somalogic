@@ -4,7 +4,6 @@ A few important points:
 1. we use the SomaLogic Normalized dataset
 2. We preprocess the protein levels by natural log transforming them
 3. We standardize protein levels during Stratified 5 fold cross validation by running StandardScaler() on the 4 training folds and scaling the validation fold
-
 Note: required feature columns of dataset: age_at_diagnosis, sex, ProcessTime, SampleGroup, 5284 proteins
 """
 
@@ -190,7 +189,6 @@ def repeated_stratified_kfold_gridsearchcv(X,
                                            n_repeats=10,
                                            random_state=0):
     """
-
     :param X: The design matrix
     :param y: The outcome
     :param standardize: Whether or not to standardize protein levels during cross validation. If True, standardizes
