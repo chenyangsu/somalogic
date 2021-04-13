@@ -457,12 +457,14 @@ if __name__ == "__main__":
                     hyperparams=hyperparams,
                     model_results=model_results,
                     colors=colors)
-    assert False
+
     # use best hyperparameter to train on entire dataset
 
     # create directory for saving final model
     final_model_dir = os.path.join(ROOT_DIR, 'results', 'models', 'final')
     os.makedirs(final_model_dir, exist_ok=True)
+
+    complete_summary = {}  # for storing the mean and std of each protein
     for i, X_choice in enumerate(X_choices):
 
         C = model_results[X_choice]['best_hyperparam']['C']
@@ -556,26 +558,25 @@ if __name__ == "__main__":
 
             print(features_to_scale)  # features_to_scale should be a list of all 5284 protein names
 
-            #-----> save features_to_scale as pickle file to load later
-            # save protein names as a list and use list to set protein order in test set. Required since the protein
-            # order in the train set used to fit StandardScaler() will only work properly, if the order of proteins in
-            # the test set is the same order as in the train set when we scale
-            prot_list_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_proteins.pkl'
-            pickle.dump(features_to_scale, open(prot_list_file, 'wb'))
+            for feature in features_to_scale:
+                summary = {}
+                summary['mean'] = X[feature].mean(axis=0)
+                summary['std'] = X[feature].std(axis=0, ddof=0)  # ddof=0 (default = 1) to be consistent with StandardScaler()
+                complete_summary[feature] = summary  # store dictionary containing mean and std of protein inside dictionary
 
             # See what model coefficient values are if final training done on standardized vs. nonstandardized data
             X_transf = X.copy()
             features = X_transf[features_to_scale]
-            scaler = StandardScaler().fit(features.values)  # fit scaler on X_train
+            scaler = StandardScaler().fit(features.values)  # fit scaler on X_train; uses same mean and std as complete_summary
             features = scaler.transform(features.values)
             X_transf[features_to_scale] = features
 
             # print(X_transf.head())  # check that proteins in X (for 'all_proteins') is standardized properly
             clf.fit(X_transf, y)
 
-            # save the scaler
+            # save the scaler dictionary
             scaler_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_scaler.pkl'
-            pickle.dump(scaler, open(scaler_file, 'wb'))
+            pickle.dump(complete_summary, open(scaler_file, 'wb'))
 
         elif X_choice == 'baseline':  # don't standardize (since don't have proteins) and directly fit on X
             # print(X.head())

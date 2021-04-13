@@ -137,6 +137,11 @@ if __name__ == "__main__":
             scaler_file = f'{FINAL_MODEL_DIR}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_scaler.pkl'
             scaler = pickle.load(open(scaler_file, 'rb'))
 
+
+            print((X['CRYBB2.10000.28'] - complete_summary['CRYBB2.10000.28']['mean']) / complete_summary['CRYBB2.10000.28']['std'] )
+
+
+
             features = X_test_transf[prot_list]
             features = scaler.transform(features.values)
             X_test_transf[prot_list] = features
