@@ -3,6 +3,11 @@ Testing the model.
 - Loads the trained model.
 - Preprocesses the test set by standardizing protein levels based on training set mean and std.
     *** NOTE: Make sure that your dataset contains the columns named age_at_diagnosis, sex, ProcessTime, SampleGroup
+    - For any features in the training set that were not present in the test set, we added the feature into the test
+    set and set it to the mean value from the training set.
+        - For ProcessTime: we add a feature column to the test set using the mean value from the training set
+        - For proteins: we add a single feature column to the test set using the mean value from the training set. Since
+        protein levels are then standardized, the final protein level passed into the model is 0 ( (mean - mean)/std = 0 )
 - Predicts AUCs on test set using trained model.
 """
 
@@ -13,7 +18,6 @@ import argparse
 import pandas as pd
 import numpy as np
 from sklearn.metrics import roc_auc_score
-from models import get_samples
 import matplotlib.pyplot as plt
 import scikitplot as skplt
 
@@ -37,27 +41,44 @@ def split_x_y(df, outcome):
     return x, y
 
 
-def preprocess(df, scaler_dict, coefficients, nat_log_transf):
+def get_samples(df, choice):
+    cols = df.columns.tolist()
+    clinical_col = [col for col in cols if col in ['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup']]
+
+    if choice == 'baseline':
+        df = df[clinical_col]
+
+    elif choice == 'all_proteins':
+        df = df
+
+    return df
+
+
+def preprocess(df, scaler_dict, train_features, nat_log_transf):
     """
     Takes data and one-hot encodes dummy variables (e.g. sex becomes sex_F, sex_M) and drops
     one of the dummy variables (e,g, here sex_F is dropped) to prevent multicollinearity.
     Finally, it sorts the columns into order: age_at_diagnosis, sex_M, proteins
     :param df: The dataframe to be processed
     :param scaler_dict: The dictionary containing mean and std of each feature from training set
-    :param coefficients: list containing the protein coefficients (clinical features removed) of the trained model
     :return: The preprocessed dataframe
     """
+    clinical_features = [f for f in train_features if
+                 f in ['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup']]
+
+    # leave only protein names
+    prot_features = [f for f in train_features if
+                    f not in ['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup']]
+
     ###### clinical features ######
     # try except block to catch if ProcessTime doesn't exist
     try:
         var = df[['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]
     except:
-        var = df[['age_at_diagnosis', 'sex', 'SampleGroup']]
+        v = df[['age_at_diagnosis', 'sex', 'SampleGroup']]
         mean_process_time = scaler_dict['ProcessTime']['mean']  # get mean value from training ProcessTime feature
-
-        process_time = pd.Series([mean_process_time] * var.shape[0])  # create list with num_rows elements and convert to Series
-        var['ProcessTime'] = process_time
-        var = var[['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]  # reorder columns
+        var = v.copy()
+        var['ProcessTime'] = mean_process_time
 
     var = pd.get_dummies(var)  # convert categorical variables to dummy variables
     var.drop('sex_F', axis=1, inplace=True)  # drop one of dummy variables to prevent multicollinearity
@@ -68,6 +89,10 @@ def preprocess(df, scaler_dict, coefficients, nat_log_transf):
     cols = {'SampleGroup.*': 'SampleGroup'}  # https://stackoverflow.com/a/46707076
     var.columns = var.columns.to_series().replace(cols, regex=True)  # replace SampleGroup_... to SampleGroup
 
+    clinical_features = [i if i != 'sex' else "sex_M" for i in clinical_features]  # change sex to sex_M
+
+    var = var[clinical_features]  # reorder columns
+
     ###### proteins ######
     test_sum_stats = pd.read_csv(TEST_PROT_LIST, low_memory=False)
     test_prot_list = test_sum_stats['c'].tolist()  # Mt. Sinai list of proteins
@@ -77,19 +102,18 @@ def preprocess(df, scaler_dict, coefficients, nat_log_transf):
         prot = prot.apply(np.log, axis=1)  # equiv to df.sum(1)
 
     # list of proteins in model that isn't in Mt. Sinai proteins
-    extra_prot = [coef for coef in coefficients if coef not in test_prot_list]
+    extra_prot = [coef for coef in prot_features if coef not in test_prot_list]
 
     for p in extra_prot:  # Add proteins in model that aren't in test set to the test set and use the mean value from training
         prot_val = scaler_dict[p]['mean']  # get mean value from training
-        prot_series = pd.Series([prot_val] * df.shape[0])  # create list with num_rows elements and convert to Series
-        prot[p] = prot_series  # add protein to dataframe
+        prot[p] = prot_val  # add protein to dataframe
 
-    prot = prot[coefficients]  # reorder proteins
+    prot = prot[prot_features]  # reorder proteins
 
     df = pd.concat([var, prot], axis=1)  # merge dataframes by column
-    print(df.head())
-    # df.fillna(df.mean(), inplace=True)  # fill na values with the mean
+
     return df
+
 
 def get_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -137,11 +161,12 @@ if __name__ == "__main__":
     model_coef = pickle.load(open(model_coef_file, 'rb'))
 
     coefficients = list(model_coef.keys())
-    # leave only protein names
-    coefficients = [coef for coef in coefficients if
-                    coef not in ['age_at_diagnosis', 'sex', 'ProcessTime', 'SampleGroup']]
 
-    df = preprocess(X, scaler_dict, coefficients, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284 (same order of proteins as in training set)
+    train_features_file = f'{FINAL_MODEL_DIR}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_train_features.pkl'
+    with open(train_features_file, "rb") as fp:  # Unpickling
+        train_features = pickle.load(fp)
+
+    df = preprocess(X, scaler_dict, train_features, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284 (same order of proteins as in training set)
 
     X_choices = ['baseline', 'all_proteins']
 
@@ -151,21 +176,26 @@ if __name__ == "__main__":
         final_model_results_path = f'{FINAL_MODEL_DIR}/{model_type}-{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}.pkl'
         model = pickle.load(open(final_model_results_path, 'rb'))
 
-        X_test = get_samples(df=df, data=data, outcome=outcome, choice=X_choice, fdr=0.01)
+        X_test = get_samples(df=df, choice=X_choice)
+
         X_test_transf = X_test.copy()
 
         if X_choice == 'all_proteins':
+            features = [f for f in train_features if
+                             f not in ['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup']]
+            for p in features:  # for each protein,  standardize based on mean and std from training set
+                X_test_transf[p] = (X_test_transf[p] - scaler_dict[p]['mean']) / scaler_dict[p]['std']
 
-            for p in coefficients:  # for each protein, standardize based on mean and std from training set
-                X_test_transf[p] = (X_test_transf[p] - model_coef[p]['mean']) / model_coef[p]['std']
-
+            print(f"Test set for {X_choice}:\n{X_test_transf.head()}\n")
             test_auc = roc_auc_score(y, model.predict_proba(X_test_transf)[:, 1])
 
         elif X_choice == 'baseline':  # don't standardize (since don't have proteins) and directly fit on X
+
+            print(f"Test set for {X_choice}\n{X_test_transf.head()}\n")
             test_auc = roc_auc_score(y, model.predict_proba(X_test_transf)[:, 1])
 
-        print(f"{X_choice} Test AUC score: {test_auc}")
-
+        print(f"({X_choice}) Test AUC score: {test_auc}\n")
+        print('#'*100, end='\n')
         # result = loaded_model.score(X_test, Y_test)
         # print(result)
 
