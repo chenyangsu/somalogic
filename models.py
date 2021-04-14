@@ -469,6 +469,12 @@ if __name__ == "__main__":
         clf = lasso(C=C, random_state=SEED)
         X = get_samples(df=df, data=data, outcome=outcome, choice=X_choice, fdr=0.01)
 
+        # save training features
+        train_features = list(X.columns)
+        train_features_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_train_features.pkl'
+        with open(train_features_file, "wb") as fp:  # Pickling
+            pickle.dump(train_features, fp)
+
         # plot CV ROC
         #####################################
 
@@ -580,6 +586,7 @@ if __name__ == "__main__":
 
         elif X_choice == 'baseline':  # don't standardize (since don't have proteins) and directly fit on X
             # print(X.head())
+            print(X.head())
             clf.fit(X, y)
 
         else:
