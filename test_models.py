@@ -166,6 +166,8 @@ if __name__ == "__main__":
     with open(train_features_file, "rb") as fp:  # Unpickling
         train_features = pickle.load(fp)
 
+    #print((list(model_coef.keys())))
+
     df = preprocess(X, scaler_dict, train_features, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284 (same order of proteins as in training set)
 
     X_choices = ['baseline', 'all_proteins']
