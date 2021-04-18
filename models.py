@@ -155,27 +155,29 @@ def get_samples(df, data, outcome, choice, fdr=0.01):
 
 
 
-def lasso(C=1.0, random_state=0):
+def lasso(C=1.0, random_state=0, tol=0.0001):
     """
     L1 regularized logistic regression model
     :param C: Amount of regularization. Corresponds to the inverse of lambda. E.g. if lambda = 10, then C = 0.1
     :param random_state: Seeding for reproducibility.
+    :param tol: Tolerance for stopping criteria.
     :return: Lasso model
     """
-    model = LogisticRegression(penalty='l1', solver='liblinear', C=C, max_iter=100, random_state=random_state)
+    model = LogisticRegression(penalty='l1', solver='liblinear', C=C, max_iter=100, random_state=random_state, tol=tol)
     return model
 
 
-def elasticnet(C=1.0, l1_ratio=0.0, random_state=0):
+def elasticnet(C=1.0, l1_ratio=0.0, random_state=0, tol=0.0001):
     """
     L1 and L2 regularized logistic regression model
     :param C: Amount of regularization. Corresponds to the inverse of lambda. E.g. if lambda = 10, then C = 0.1
     :param l1_ratio: Amount of l1 regularization. If l1_ratio = 0.1, then l2_ratio must be 0.9
     :param random_state: Seeding for reproducibility
+    :param tol: Tolerance for stopping criteria.
     :return: elasticnet model
     """
 
-    model = LogisticRegression(penalty='elasticnet', solver='saga', C=C, l1_ratio=l1_ratio, max_iter=10000, random_state=random_state)
+    model = LogisticRegression(penalty='elasticnet', solver='saga', C=C, l1_ratio=l1_ratio, max_iter=10000, random_state=random_state, tol=tol)
     return model
 
 
@@ -205,87 +207,169 @@ def repeated_stratified_kfold_gridsearchcv(X,
     """
 
     # Perform Grid Search on each parameter configuration and cross validation
-    # if model_type == 'lasso':
-    #     model = lasso(random_state)
-    # elif model_type == 'elasticnet':
-    #     model = elasticnet(random_state)
-    # else:
-    #     raise NotImplementedError
-
     rskf = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
 
     C = hyperparams['C']
 
-    results = {'C': C, 'mean_train_score': [], 'mean_val_score': [], 'std_train_score': [], 'std_val_score': [], 'best_hyperparam': {}}
+    if model_type == 'lasso':
+        results = {'C': C, 'mean_train_score': [], 'mean_val_score': [], 'std_train_score': [], 'std_val_score': [],
+                   'best_hyperparam': {}}
 
-    if X_choice == 'all_proteins' and standardize == True:
-        for i, c in enumerate(C):  # loop over hyperparameter
-            train_aucs, val_aucs = [], []  # for storing aucs over all splits
+        if X_choice == 'all_proteins' and standardize == True:
+            for i, c in enumerate(C):  # loop over hyperparameter
+                train_aucs, val_aucs = [], []  # for storing aucs over all splits
 
-            for j, (train_index, val_index) in enumerate(rskf.split(X, y)):
-                X_train, X_val = X.iloc[train_index], X.iloc[val_index]
-                y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+                for j, (train_index, val_index) in enumerate(rskf.split(X, y)):
+                    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+                    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
 
-                features_to_scale = list(X_train.columns)
-                features_to_scale.remove('age_at_diagnosis')
-                features_to_scale.remove('sex_M')
-                features_to_scale.remove('ProcessTime')
-                features_to_scale.remove('SampleGroup')  # drop since want to standardize proteins only
+                    features_to_scale = list(X_train.columns)
+                    features_to_scale.remove('age_at_diagnosis')
+                    features_to_scale.remove('sex_M')
+                    features_to_scale.remove('ProcessTime')
+                    features_to_scale.remove('SampleGroup')  # drop since want to standardize proteins only
 
-                X_train_transf = X_train.copy()
-                features = X_train_transf[features_to_scale]
-                scaler = StandardScaler().fit(features.values)  # fit scaler on X_train
-                features = scaler.transform(features.values)
-                X_train_transf[features_to_scale] = features
-                # print(X_train_transf.head())
+                    X_train_transf = X_train.copy()
+                    features = X_train_transf[features_to_scale]
+                    scaler = StandardScaler().fit(features.values)  # fit scaler on X_train
+                    features = scaler.transform(features.values)
+                    X_train_transf[features_to_scale] = features
+                    # print(X_train_transf.head())
 
-                X_val_transf = X_val.copy()
-                features = X_val_transf[features_to_scale]
-                features = scaler.transform(features.values)  # use scaler fitted on X_train to transform X_val
-                X_val_transf[features_to_scale] = features
-                # print(X_val_transf.head())
+                    X_val_transf = X_val.copy()
+                    features = X_val_transf[features_to_scale]
+                    features = scaler.transform(features.values)  # use scaler fitted on X_train to transform X_val
+                    X_val_transf[features_to_scale] = features
+                    # print(X_val_transf.head())
 
-                clf = lasso(C=c)
-                clf.fit(X_train_transf, y_train)
+                    clf = lasso(C=c)
 
-                train_auc = roc_auc_score(y_train, clf.predict_proba(X_train_transf)[:, 1])
-                val_auc = roc_auc_score(y_val, clf.predict_proba(X_val_transf)[:, 1])
+                    clf.fit(X_train_transf, y_train)
 
-                train_aucs.append(train_auc)
-                val_aucs.append(val_auc)
-                print(f'Finished {X_choice} -- Hyperparameter {i+1}/{len(C)} (C={c}): Experiment {j+1}/{n_splits*n_repeats}')
+                    train_auc = roc_auc_score(y_train, clf.predict_proba(X_train_transf)[:, 1])
+                    val_auc = roc_auc_score(y_val, clf.predict_proba(X_val_transf)[:, 1])
 
-            results['mean_train_score'].append(np.mean(train_aucs))
-            results['mean_val_score'].append(np.mean(val_aucs))
-            results['std_train_score'].append(np.std(train_aucs))
-            results['std_val_score'].append(np.std(val_aucs))
+                    train_aucs.append(train_auc)
+                    val_aucs.append(val_auc)
+                    print(f'Finished {X_choice} -- Hyperparameter {i+1}/{len(C)} (C={c}): Experiment {j+1}/{n_splits*n_repeats}')
 
-    else:  # no standardization of protein levels during cross-validation ('baseline')
-        for i, c in enumerate(C):  # loop over hyperparameter
-            train_aucs, val_aucs = [], []  # for storing aucs over all splits
+                results['mean_train_score'].append(np.mean(train_aucs))
+                results['mean_val_score'].append(np.mean(val_aucs))
+                results['std_train_score'].append(np.std(train_aucs))
+                results['std_val_score'].append(np.std(val_aucs))
 
-            for j, (train_index, val_index) in enumerate(rskf.split(X, y)):
-                X_train, X_val = X.iloc[train_index], X.iloc[val_index]
-                y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+        else:  # no standardization of protein levels during cross-validation ('baseline')
+            for i, c in enumerate(C):  # loop over hyperparameter
+                train_aucs, val_aucs = [], []  # for storing aucs over all splits
 
-                clf = lasso(C=c)
-                clf.fit(X_train, y_train)
+                for j, (train_index, val_index) in enumerate(rskf.split(X, y)):
+                    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+                    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
 
-                train_auc = roc_auc_score(y_train, clf.predict_proba(X_train)[:, 1])
-                val_auc = roc_auc_score(y_val, clf.predict_proba(X_val)[:, 1])
+                    clf = lasso(C=c)
 
-                train_aucs.append(train_auc)
-                val_aucs.append(val_auc)
-                print(f'Finished {X_choice} -- Hyperparameter {i+1}/{len(C)} (C={c}): Experiment {j+1}/{n_splits*n_repeats}')
+                    clf.fit(X_train, y_train)
 
-            results['mean_train_score'].append(np.mean(train_aucs))
-            results['mean_val_score'].append(np.mean(val_aucs))
-            results['std_train_score'].append(np.std(train_aucs))
-            results['std_val_score'].append(np.std(val_aucs))
+                    train_auc = roc_auc_score(y_train, clf.predict_proba(X_train)[:, 1])
+                    val_auc = roc_auc_score(y_val, clf.predict_proba(X_val)[:, 1])
 
-    idx_of_best_val_score = results['mean_val_score'].index(max(results['mean_val_score']))
-    best_hyperparam_value = results['C'][idx_of_best_val_score]
-    results['best_hyperparam']['C'] = best_hyperparam_value
+                    train_aucs.append(train_auc)
+                    val_aucs.append(val_auc)
+                    print(f'Finished {X_choice} -- Hyperparameter {i+1}/{len(C)} (C={c}): Experiment {j+1}/{n_splits*n_repeats}')
+
+                results['mean_train_score'].append(np.mean(train_aucs))
+                results['mean_val_score'].append(np.mean(val_aucs))
+                results['std_train_score'].append(np.std(train_aucs))
+                results['std_val_score'].append(np.std(val_aucs))
+
+        idx_of_best_val_score = results['mean_val_score'].index(max(results['mean_val_score']))
+        best_hyperparam_value = results['C'][idx_of_best_val_score]
+        results['best_hyperparam']['C'] = best_hyperparam_value
+
+
+
+    elif model_type == 'elasticnet':
+        l1_ratio = hyperparams['l1_ratio']
+
+        results = {'C': C, 'l1_ratio': l1_ratio, 'mean_train_score': [], 'mean_val_score': [],
+                   'std_train_score': [], 'std_val_score': [], 'best_hyperparam': {}}
+
+        if X_choice == 'all_proteins' and standardize == True:
+            for h, l1 in enumerate(l1_ratio):
+                for i, c in enumerate(C):  # loop over hyperparameter
+                    train_aucs, val_aucs = [], []  # for storing aucs over all splits
+
+                    for j, (train_index, val_index) in enumerate(rskf.split(X, y)):
+                        X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+                        y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+
+                        features_to_scale = list(X_train.columns)
+                        features_to_scale.remove('age_at_diagnosis')
+                        features_to_scale.remove('sex_M')
+                        features_to_scale.remove('ProcessTime')
+                        features_to_scale.remove('SampleGroup')  # drop since want to standardize proteins only
+
+                        X_train_transf = X_train.copy()
+                        features = X_train_transf[features_to_scale]
+                        scaler = StandardScaler().fit(features.values)  # fit scaler on X_train
+                        features = scaler.transform(features.values)
+                        X_train_transf[features_to_scale] = features
+                        # print(X_train_transf.head())
+
+                        X_val_transf = X_val.copy()
+                        features = X_val_transf[features_to_scale]
+                        features = scaler.transform(features.values)  # use scaler fitted on X_train to transform X_val
+                        X_val_transf[features_to_scale] = features
+                        # print(X_val_transf.head())
+
+                        clf = elasticnet(C=c, l1_ratio=l1, tol=0.01)
+
+                        clf.fit(X_train_transf, y_train)
+
+                        train_auc = roc_auc_score(y_train, clf.predict_proba(X_train_transf)[:, 1])
+                        val_auc = roc_auc_score(y_val, clf.predict_proba(X_val_transf)[:, 1])
+
+                        train_aucs.append(train_auc)
+                        val_aucs.append(val_auc)
+                        print(f'Finished {X_choice} -- Hyperparameter {h + 1}/{len(l1_ratio)}, {i + 1}/{len(C)} (l1_ratio={l1}, C={c}): Experiment {j + 1}/{n_splits * n_repeats}')
+
+                    results['mean_train_score'].append(np.mean(train_aucs))  # first 17 values for l1_ratio=0.0, next 17 for l1_ratio=0.1...
+                    results['mean_val_score'].append(np.mean(val_aucs))
+                    results['std_train_score'].append(np.std(train_aucs))
+                    results['std_val_score'].append(np.std(val_aucs))
+
+        else:  # no standardization of protein levels during cross-validation ('baseline')
+            for h, l1 in enumerate(l1_ratio):
+                for i, c in enumerate(C):  # loop over hyperparameter
+                    train_aucs, val_aucs = [], []  # for storing aucs over all splits
+
+                    for j, (train_index, val_index) in enumerate(rskf.split(X, y)):
+                        X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+                        y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+
+                        clf = elasticnet(C=c, l1_ratio=l1, tol=0.01)
+
+                        clf.fit(X_train, y_train)
+
+                        train_auc = roc_auc_score(y_train, clf.predict_proba(X_train)[:, 1])
+                        val_auc = roc_auc_score(y_val, clf.predict_proba(X_val)[:, 1])
+
+                        train_aucs.append(train_auc)
+                        val_aucs.append(val_auc)
+                        print(f'Finished {X_choice} -- Hyperparameter {h + 1}/{len(l1_ratio)}, {i + 1}/{len(C)} (l1_ratio={l1}, C={c}): Experiment {j + 1}/{n_splits * n_repeats}')
+
+                    results['mean_train_score'].append(np.mean(train_aucs))
+                    results['mean_val_score'].append(np.mean(val_aucs))
+                    results['std_train_score'].append(np.std(train_aucs))
+                    results['std_val_score'].append(np.std(val_aucs))
+
+        idx_of_best_val_score = results['mean_val_score'].index(max(results['mean_val_score']))
+
+        idx_of_l1_ratio = idx_of_best_val_score // len(C)
+        idx_of_C = idx_of_best_val_score % len(C)
+
+        results['best_hyperparam']['l1_ratio'] = results['l1_ratio'][idx_of_l1_ratio]
+        results['best_hyperparam']['C'] = results['C'][idx_of_C]
 
     return results
 
@@ -426,16 +510,16 @@ if __name__ == "__main__":
         for X_choice in X_choices:
             X = get_samples(df=df, data=data, outcome=outcome, choice=X_choice, fdr=0.01)
 
-            cv_results = repeated_stratified_kfold_gridsearchcv(X,
-                                                                y,
-                                                                X_choice,
+            cv_result = repeated_stratified_kfold_gridsearchcv(X=X,
+                                                                y=y,
+                                                                X_choice=X_choice,
                                                                 standardize=standardize,
                                                                 hyperparams=hyperparams,
                                                                 model_type=model_type,
                                                                 n_splits=5,
-                                                                n_repeats=10,
+                                                                n_repeats=10,  # 10
                                                                 random_state=SEED)
-            cv_results[X_choice] = cv_results
+            cv_results[X_choice] = cv_result
 
         # save model parameters
         with open(cv_results_path, 'wb') as fp:
@@ -448,7 +532,7 @@ if __name__ == "__main__":
         cv_results = pickle.load(fp)
     print(cv_results.keys())
     print(cv_results)
-
+    assert False
     plot_auc(model_type=model_type,
                     data=data,
                     outcome=outcome,
