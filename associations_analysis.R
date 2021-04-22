@@ -96,7 +96,7 @@ for (prot in prot_list) {
 df <- df[order(df$P), ]  # sort by increasing p value (smallest to largest p)
 
 df$FDRp <- p.adjust(df$P, method = "fdr", n = length(prot_list))  # Create column with FDR corrected p value (Benjamini-Hochberg method)
-stop()
+
 file_name <- paste("./results/all_proteins/age+sex+SampleGroup+ProcessTime+protlevel/", data, outcome, "LR",            
                    "age+sex+SampleGroup+ProcessTime+protlevel", "Analysis=all_proteins.xlsx", sep = "_")  # concatenates arguments by separator
 
