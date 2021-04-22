@@ -27,6 +27,8 @@ if (length(args)==0) {
 
 data = args[1]                                                # [infe, non_infe]
 outcome = args[2]                                             # [A2, A3, B2, C1]
+# data = "infe"
+# outcome = "A2"
 
 setwd("/home/richards/chen-yang.su/projects/richards/chen-yang.su/somalogic")
 
@@ -36,7 +38,7 @@ i <- 0
 formula <- A2 ~ age_at_diagnosis + sex + protein
 
 if (data == "infe") {  # set dat
-  dat <- read.csv(file = "./results/datasets/infe_417.csv")
+  dat <- read.csv(file = "./results/datasets/infe_417-soma_data=normalized-nat_log_tranf=TRUE-standardize=TRUE-remove_outliers=FALSE.csv")
   
 } else if (data == "non_infe") {
   dat <- read.csv(file = "./results/datasets/non_infe_219.csv")
@@ -44,8 +46,9 @@ if (data == "infe") {  # set dat
 } else {
   stop("The data inputted is incorrect. Select one of {infe, non_infe}.") 
 }
-
-prot_list <- colnames(dat[43:length(dat)])  # get all proteins
+# print(table(dat$A2))
+# print(table(dat$A3))
+prot_list = readLines("Somalogic_list_QC1.txt")
 
 for (prot in prot_list) {
   print(prot)
@@ -93,7 +96,7 @@ for (prot in prot_list) {
 df <- df[order(df$P), ]  # sort by increasing p value (smallest to largest p)
 
 df$FDRp <- p.adjust(df$P, method = "fdr", n = length(prot_list))  # Create column with FDR corrected p value (Benjamini-Hochberg method)
-
+stop()
 file_name <- paste("./results/all_proteins/age+sex+SampleGroup+ProcessTime+protlevel/", data, outcome, "LR",            
                    "age+sex+SampleGroup+ProcessTime+protlevel", "Analysis=all_proteins.xlsx", sep = "_")  # concatenates arguments by separator
 
