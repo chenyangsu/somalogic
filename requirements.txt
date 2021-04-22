@@ -8,3 +8,4 @@ umap
 hdbscan
 openpyxl
 scikit-plot
+tableone
