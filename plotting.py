@@ -12,7 +12,7 @@ import pandas as pd
 from sklearn.metrics import auc
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # .../somalogic
-
+PLOTS_DIR = os.path.join(ROOT_DIR, 'results', 'plots')
 # Plot Number of coefficients left as a function of strength of regularization
 
 # confusion matrix
@@ -195,7 +195,7 @@ def plot_correlation(df, y, data, outcome, prot_list):
     plt.xlabel(r'Increasing p value $\rightarrow $')
     plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
     plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
-    #plt.savefig(f'{data}_{outcome}_controls_spearman_correlation.png')
+    plt.savefig(f'{data}_{outcome}_controls_spearman_correlation.png')
     plt.show()
 
 
@@ -270,21 +270,38 @@ def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
 
 
 def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
-    #TODO: Add docstring
+    """
+    Plots the training AUC scores as a function of the hyperparameters
+    :param model_type: which model results to plot
+    :param data: which dataset was used e.g. infe
+    :param outcome: The target label
+    :param hyperparams: dictionary of hyperparameters
+    :param cv_model_results: results from cross-validation
+    :param colors: colors to use in plotting
+    :return:
+    """
 
-    sns.set_theme()
-    # Here are some plot styles, which primarily make this plot larger for display purposes.
-    plotting_params = {'axes.labelsize': 18,
-                  'legend.fontsize': 16,
-                  'xtick.labelsize': 16,
-                  'ytick.labelsize': 16,
-                  'axes.titlesize': 20}
-    plt.rcParams.update(plotting_params)
-    plt.subplots(figsize=(15, 12))
+    save_dir = os.path.join(PLOTS_DIR, 'train_auc')
+    os.makedirs(save_dir, exist_ok=True)
+
+    labels = ['Baseline Model', 'Protein Model']
+
+    C_range = hyperparams['C']
+    # convert to 2 decimal places string then to float
+    log_10_lamb = [float("{:.2f}".format(math.log10(1 / c))) if c != 0 else c for c in C_range]
 
     if model_type == 'lasso':
-        C_range = hyperparams['C']
-        log_10_lamb = [math.log10(1 / c) if c != 0 else c for c in C_range]
+        file_to_save = f'{save_dir}/{data}_{outcome}_{model_type}_train_auc.png'
+
+        sns.set_theme()
+        # Here are some plot styles, which primarily make this plot larger for display purposes.
+        plotting_params = {'axes.labelsize': 24,
+                           'legend.fontsize': 24,
+                           'xtick.labelsize': 24,
+                           'ytick.labelsize': 24,
+                           'axes.titlesize': 20}
+        plt.rcParams.update(plotting_params)
+        plt.subplots(figsize=(15, 12))
 
         for i, choice in enumerate(cv_model_results):  # iterate through keys which are the data set choices
 
@@ -292,13 +309,13 @@ def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
             x = log_10_lamb
             y = list(cv_results['mean_val_score'])
 
-            plt.plot(x, y, lw=4, color=colors[i], label=f'{choice}')
+            plt.plot(x, y, lw=4, color=colors[i], label=labels[i])
 
             # get (x,y) at max y value
             ymax = max(y)
             xpos = y.index(ymax)
-            xmax = x[xpos]
-            xmax = 10**xmax  # convert to actual lambda value
+            xmax = x[xpos]  # convert to actual lambda value
+            xmax = 10**xmax
             plt.ylim(top=1)  # set y axis max value to 1
 
             # Plot a dotted vertical line at the best score for that scorer marked by x
@@ -311,26 +328,103 @@ def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
                              (log_10_lamb[y.index(max(y))], max(y) + 0.02))
             else:
                 plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
-                         (log_10_lamb[y.index(max(y))], max(y) + 0.01))
+                         (log_10_lamb[y.index(max(y))], max(y) + 0.01), fontsize=20)
 
             plt.fill_between(log_10_lamb, np.array(cv_results['mean_val_score']) - np.array(cv_results['std_val_score']),
-                     np.array(cv_results['mean_val_score']) + np.array(cv_results['std_val_score']),
-                     alpha=0.1, color=colors[i])
+                             np.array(cv_results['mean_val_score']) + np.array(cv_results['std_val_score']),
+                             alpha=0.1, color=colors[i])
 
         plt.ylim(bottom=0.4)
         plt.xlabel('Strength of regularization ($log_{10}(\lambda$))')
-        plt.ylabel('AUC score')
+        plt.ylabel('Training AUC score')
         plt.legend(bbox_to_anchor=(1, 1))
-        plt.title(f'{data} {outcome} {model_type}', fontsize=20)
-        plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{model_type}_auc.png',
-                    bbox_inches='tight')
+        # plt.title(f'{data} {outcome} {model_type} training AUC', fontsize=20)
+        plt.savefig(file_to_save, bbox_inches='tight')
         plt.show()
 
     elif model_type == 'elasticnet':
-        # C_range = hyperparams['C']
-        # lamb = [math.log10(1 / c) if c != 0 else c for c in C_range]
-        # l1_ratio = hyperparams['l1_ratio']
-        pass
+
+        l1_ratio = hyperparams['l1_ratio']
+        l1_ratio = ["{:.2f}".format(ratio) for ratio in l1_ratio]  # prevent long floating points
+
+        for i, choice in enumerate(cv_model_results):  # iterate through keys which are the data set choices
+
+            cv_results = cv_model_results[choice]
+
+            lst = []
+
+            for j in range(len(l1_ratio)):
+                l = cv_results['mean_val_score'][17*j:17*(j+1)]
+                l.reverse()
+                print(l)
+                lst.append(l)
+            print(lst)
+            # df = pd.DataFrame(lst, columns=log_10_lamb[::-1])
+            # print(df)
+            #
+            # sns.set_theme()
+            # # Here are some plot styles, which primarily make this plot larger for display purposes.
+            # plotting_params = {'axes.labelsize': 18,
+            #                    'legend.fontsize': 16,
+            #                    'xtick.labelsize': 16,
+            #                    'ytick.labelsize': 16,
+            #                    'axes.titlesize': 20}
+            # plt.rcParams.update(plotting_params)
+            # plt.subplots(figsize=(15, 12))
+            #
+            #
+            # sns.heatmap(df, cmap='YlOrBr', annot=True)
+            # plt.show()
+
+            for idx, k in enumerate(lst):
+                plt.plot(log_10_lamb[::-1], k, lw=1, label=l1_ratio[idx])
+            plt.legend(bbox_to_anchor=(1, 1), title="L1 ratio",fancybox=True, shadow=True)
+            plt.xlabel('Strength of regularization ($log_{10}(\lambda$))')
+            plt.ylabel('Training AUC score')
+            plt.xticks(rotation=70)
+
+            # plt.title(f'{data} {outcome} {model_type} training AUC - {labels[i]}')
+            file_to_save = f'{save_dir}/{data}_{outcome}_{model_type}_{choice}_train_auc.png'
+            plt.savefig(file_to_save, bbox_inches='tight')
+
+            plt.show()
+
+
+        #     x = log_10_lamb
+        #     y = list(cv_results['mean_val_score'])
+        #
+        #     plt.plot(x, y, lw=4, color=colors[i], label=labels[i])
+        #
+        #     # get (x,y) at max y value
+        #     ymax = max(y)
+        #     xpos = y.index(ymax)
+        #     xmax = 10 ** (x[xpos])  # convert to actual lambda value
+        #     plt.ylim(top=1)  # set y axis max value to 1
+        #
+        #     # Plot a dotted vertical line at the best score for that scorer marked by x
+        #     plt.plot([log_10_lamb[y.index(max(y))]] * 2, np.linspace(0, max(y), 2),
+        #              linestyle='-.', color=colors[i], marker='x', markeredgewidth=3, ms=8)
+        #
+        #     # Annotate the best score for that scorer
+        #     if choice == 'fdr_sig_proteins':
+        #         plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
+        #                      (log_10_lamb[y.index(max(y))], max(y) + 0.02))
+        #     else:
+        #         plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
+        #                      (log_10_lamb[y.index(max(y))], max(y) + 0.01))
+        #
+        #     plt.fill_between(log_10_lamb,
+        #                      np.array(cv_results['mean_val_score']) - np.array(cv_results['std_val_score']),
+        #                      np.array(cv_results['mean_val_score']) + np.array(cv_results['std_val_score']),
+        #                      alpha=0.1, color=colors[i])
+        #
+        # plt.ylim(bottom=0.4)
+        # plt.xlabel('Strength of regularization ($log_{10}(\lambda$))')
+        # plt.ylabel('Training AUC score')
+        # plt.legend(bbox_to_anchor=(1, 1))
+        # plt.title(f'{data} {outcome} {model_type} training AUC', fontsize=20)
+        # plt.savefig(file_to_save, bbox_inches='tight')
+        # plt.show()
 
     else:
         raise NotImplementedError
