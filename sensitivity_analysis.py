@@ -39,6 +39,7 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import plot_precision_recall_curve
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
+from tableone import TableOne
 
 pd.set_option('display.max_rows', 1000)
 pd.set_option('display.max_columns', 500)
@@ -60,7 +61,9 @@ NON_PROT_FEAT = ['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup',
                  'com_heart_failure',
                  'com_hypertension',
                  'com_liver',
-                 'smoking']
+                 'smoking_1',  # after converting smoking to dummy and dropping first column
+                 'smoking_2']
+PLOTS_DIR = os.path.join(ROOT_DIR, 'results', 'plots')
 
 def split_x_y(df, outcome):
     """
@@ -117,17 +120,34 @@ def preprocess(df, nat_log_transf):
 
     clinical = pd.read_csv(CLINICAL_FILE)
 
-    clinical = clinical[['anonymized_patient_id',
-                         'com_diabetes',
-                         'com_chronic_pulm',
-                         'com_chronic_kidney',
-                         'com_heart_failure',
-                         'com_hypertension',
-                         'com_liver',
-                         'smoking']]
+    columns = ['anonymized_patient_id',
+               'com_diabetes',
+               'com_chronic_pulm',
+               'com_chronic_kidney',
+               'com_heart_failure',
+               'com_hypertension',
+               'com_liver',
+               'smoking']
+    clinical = clinical[columns]
 
-    for feature in clinical.columns.tolist()[1:]:
+    mytable = TableOne(clinical, columns=columns[1:])
+    print(mytable.tabulate(tablefmt="fancy_grid"))
+
+    for feature in clinical.columns.tolist()[1:7]:  # excluding smoking
         clinical[feature].values[clinical[feature].values != 1] = 0
+
+    # "0 Smoker, 1 Ex smoker, 2 Never smoker, -1 Don't know, -3 Prefer not to answer"
+    clinical.loc[~clinical["smoking"].isin([0, 1, 2]), "smoking"] = 2  # set -1, -3 to 2 (Never Smoker)
+
+
+    # pd.read_csv converts all values to float due to having NaNs so values back to int
+    for feature in clinical.columns.tolist()[1:]:  # excluding anonymized_patient_id
+        clinical[feature] = clinical[feature].astype(int)
+
+    clinical = clinical.applymap(str)  # convert all int64 dtypes to object dtypes so can do dummy encoding
+
+    # dummy encoding for smoking (other comorbidities are 0 and 1 already)
+    clinical = pd.get_dummies(clinical, columns=[columns[7]], drop_first=True)  # drop one of the columns so have n-1
 
     df = pd.merge(clinical, df, how='inner', on='anonymized_patient_id')
     df = df.drop(columns=['anonymized_patient_id'])
@@ -155,14 +175,7 @@ def get_samples(df, data, outcome, choice, fdr=0.01):
     """
 
     if choice == 'baseline':
-        df = df[['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup',
-                 'com_diabetes',
-                 'com_chronic_pulm',
-                 'com_chronic_kidney',
-                 'com_heart_failure',
-                 'com_hypertension',
-                 'com_liver',
-                 'smoking']]
+        df = df[NON_PROT_FEAT]
 
     elif choice == 'all_proteins':
         df = df
@@ -476,6 +489,168 @@ def get_hyperparams(model_type):
     return hyperparams
 
 
+
+def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
+    """
+    Plots the training AUC scores as a function of the hyperparameters
+    :param model_type: which model results to plot
+    :param data: which dataset was used e.g. infe
+    :param outcome: The target label
+    :param hyperparams: dictionary of hyperparameters
+    :param cv_model_results: results from cross-validation
+    :param colors: colors to use in plotting
+    :return:
+    """
+
+    save_dir = os.path.join(PLOTS_DIR, 'sensitivity_analysis', 'train_auc')
+    os.makedirs(save_dir, exist_ok=True)
+
+    labels = ['Baseline Model', 'Protein Model']
+
+    C_range = hyperparams['C']
+    # convert to 2 decimal places string then to float
+    log_10_lamb = [float("{:.2f}".format(math.log10(1 / c))) if c != 0 else c for c in C_range]
+
+    if model_type == 'lasso':
+        file_to_save = f'{save_dir}/{data}_{outcome}_{model_type}_train_auc.png'
+
+        sns.set_theme()
+        # Here are some plot styles, which primarily make this plot larger for display purposes.
+        plotting_params = {'axes.labelsize': 24,
+                           'legend.fontsize': 24,
+                           'xtick.labelsize': 24,
+                           'ytick.labelsize': 24,
+                           'axes.titlesize': 20}
+        plt.rcParams.update(plotting_params)
+        plt.subplots(figsize=(15, 12))
+
+        for i, choice in enumerate(cv_model_results):  # iterate through keys which are the data set choices
+
+            cv_results = cv_model_results[choice]
+            x = log_10_lamb
+            y = list(cv_results['mean_val_score'])
+
+            plt.plot(x, y, lw=4, color=colors[i], label=labels[i])
+
+            # get (x,y) at max y value
+            ymax = max(y)
+            xpos = y.index(ymax)
+            xmax = x[xpos]  # convert to actual lambda value
+            xmax = 10**xmax
+            plt.ylim(top=1)  # set y axis max value to 1
+
+            # Plot a dotted vertical line at the best score for that scorer marked by x
+            plt.plot([log_10_lamb[y.index(max(y))]] * 2, np.linspace(0, max(y), 2),
+                     linestyle='-.', color=colors[i], marker='x', markeredgewidth=3, ms=8)
+
+            # Annotate the best score for that scorer
+            if choice == 'fdr_sig_proteins':
+                plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
+                             (log_10_lamb[y.index(max(y))], max(y) + 0.02))
+            else:
+                plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
+                         (log_10_lamb[y.index(max(y))], max(y) + 0.01), fontsize=20)
+
+            plt.fill_between(log_10_lamb, np.array(cv_results['mean_val_score']) - np.array(cv_results['std_val_score']),
+                             np.array(cv_results['mean_val_score']) + np.array(cv_results['std_val_score']),
+                             alpha=0.1, color=colors[i])
+
+        plt.ylim(bottom=0.4)
+        plt.xlabel('Strength of regularization ($log_{10}(\lambda$))')
+        plt.ylabel('Training AUC score')
+        plt.legend(bbox_to_anchor=(1, 1))
+        # plt.title(f'{data} {outcome} {model_type} training AUC', fontsize=20)
+        plt.savefig(file_to_save, bbox_inches='tight')
+        plt.show()
+
+    elif model_type == 'elasticnet':
+
+        l1_ratio = hyperparams['l1_ratio']
+        l1_ratio = ["{:.2f}".format(ratio) for ratio in l1_ratio]  # prevent long floating points
+
+        for i, choice in enumerate(cv_model_results):  # iterate through keys which are the data set choices
+
+            cv_results = cv_model_results[choice]
+
+            lst = []
+
+            for j in range(len(l1_ratio)):
+                l = cv_results['mean_val_score'][17*j:17*(j+1)]
+                l.reverse()
+                print(l)
+                lst.append(l)
+            print(lst)
+            # df = pd.DataFrame(lst, columns=log_10_lamb[::-1])
+            # print(df)
+            #
+            # sns.set_theme()
+            # # Here are some plot styles, which primarily make this plot larger for display purposes.
+            # plotting_params = {'axes.labelsize': 18,
+            #                    'legend.fontsize': 16,
+            #                    'xtick.labelsize': 16,
+            #                    'ytick.labelsize': 16,
+            #                    'axes.titlesize': 20}
+            # plt.rcParams.update(plotting_params)
+            # plt.subplots(figsize=(15, 12))
+            #
+            #
+            # sns.heatmap(df, cmap='YlOrBr', annot=True)
+            # plt.show()
+
+            for idx, k in enumerate(lst):
+                plt.plot(log_10_lamb[::-1], k, lw=1, label=l1_ratio[idx])
+            plt.legend(bbox_to_anchor=(1, 1), title="L1 ratio",fancybox=True, shadow=True)
+            plt.xlabel('Strength of regularization ($log_{10}(\lambda$))')
+            plt.ylabel('Training AUC score')
+            plt.xticks(rotation=70)
+
+            # plt.title(f'{data} {outcome} {model_type} training AUC - {labels[i]}')
+            file_to_save = f'{save_dir}/{data}_{outcome}_{model_type}_{choice}_train_auc.png'
+            plt.savefig(file_to_save, bbox_inches='tight')
+
+            plt.show()
+
+
+        #     x = log_10_lamb
+        #     y = list(cv_results['mean_val_score'])
+        #
+        #     plt.plot(x, y, lw=4, color=colors[i], label=labels[i])
+        #
+        #     # get (x,y) at max y value
+        #     ymax = max(y)
+        #     xpos = y.index(ymax)
+        #     xmax = 10 ** (x[xpos])  # convert to actual lambda value
+        #     plt.ylim(top=1)  # set y axis max value to 1
+        #
+        #     # Plot a dotted vertical line at the best score for that scorer marked by x
+        #     plt.plot([log_10_lamb[y.index(max(y))]] * 2, np.linspace(0, max(y), 2),
+        #              linestyle='-.', color=colors[i], marker='x', markeredgewidth=3, ms=8)
+        #
+        #     # Annotate the best score for that scorer
+        #     if choice == 'fdr_sig_proteins':
+        #         plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
+        #                      (log_10_lamb[y.index(max(y))], max(y) + 0.02))
+        #     else:
+        #         plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
+        #                      (log_10_lamb[y.index(max(y))], max(y) + 0.01))
+        #
+        #     plt.fill_between(log_10_lamb,
+        #                      np.array(cv_results['mean_val_score']) - np.array(cv_results['std_val_score']),
+        #                      np.array(cv_results['mean_val_score']) + np.array(cv_results['std_val_score']),
+        #                      alpha=0.1, color=colors[i])
+        #
+        # plt.ylim(bottom=0.4)
+        # plt.xlabel('Strength of regularization ($log_{10}(\lambda$))')
+        # plt.ylabel('Training AUC score')
+        # plt.legend(bbox_to_anchor=(1, 1))
+        # plt.title(f'{data} {outcome} {model_type} training AUC', fontsize=20)
+        # plt.savefig(file_to_save, bbox_inches='tight')
+        # plt.show()
+
+    else:
+        raise NotImplementedError
+
+
 def get_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -521,6 +696,7 @@ if __name__ == "__main__":
     X, y = split_x_y(df, outcome)
     df, idx_to_drop = preprocess(X, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284
     y = y.drop(idx_to_drop)
+
     # Look at data
     # plot_pca(df=df, y=y, data=data, outcome=outcome, cluster_by='samples', num_components=20)
     # plot_age_distribution(df=df, y=y, data=data, outcome=outcome)
@@ -535,8 +711,9 @@ if __name__ == "__main__":
     colors = ['#d53e4f', 'blue']
     cv_results = {}
 
-    model_dir = os.path.join(ROOT_DIR, 'results', 'models')
-    cv_results_path = f'{model_dir}/sensitivity_analysis_{model_type}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_cv_results.pkl'
+    model_dir = os.path.join(ROOT_DIR, 'results', 'models', 'sensitivity_analysis')
+    os.makedirs(model_dir, exist_ok=True)
+    cv_results_path = f'{model_dir}/{model_type}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_cv_results.pkl'
 
     if config['params_search']:  # run hyperparam search and save model results
 
@@ -568,6 +745,7 @@ if __name__ == "__main__":
     print(cv_results.keys())
     print(cv_results)
     assert False
+
     plot_auc(model_type=model_type,
                     data=data,
                     outcome=outcome,
@@ -578,7 +756,7 @@ if __name__ == "__main__":
     # use best hyperparameter to train on entire dataset
 
     # create directory for saving final model
-    final_model_dir = os.path.join(ROOT_DIR, 'results', 'models', 'final')
+    final_model_dir = os.path.join(ROOT_DIR, 'results', 'models', 'sensitivity_analysis', 'final')
     os.makedirs(final_model_dir, exist_ok=True)
 
     complete_summary = {}  # for storing the mean and std of each protein
