@@ -28,6 +28,9 @@ def plot_age_distribution(df, y, data, outcome):
     :param outcome: the outcome used e.g. A2, A3, B2, C1
     :return: a scatter plot
     """
+    violin_dir = os.path.join(PLOTS_DIR, 'violin')
+    os.makedirs(violin_dir, exist_ok=True)
+
     sns.set_theme(style="whitegrid")
     dataframe = pd.concat([df, y], axis=1)
     dataframe[outcome] = dataframe[outcome].map({1: 'Case', 0: 'Control'})  # replace 1 to case, 0 to control
@@ -39,8 +42,8 @@ def plot_age_distribution(df, y, data, outcome):
     ax.set_ylabel('Age')
     ax.set_xlabel(f'{outcome} Outcome')
     ax.legend(loc='best')
-    ax.set_title(f'{data} {outcome} age distribution')
-    plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_age_violin.png', bbox_inches='tight')
+    # ax.set_title(f'{data} {outcome} age distribution')
+    plt.savefig(f'{violin_dir}/{data}_{outcome}_age_distribution.png', bbox_inches='tight')
     plt.show()
 
 # plots age distribution as a scatter plot by cases/controls
@@ -70,7 +73,7 @@ def plot_age_distribution(df, y, data, outcome):
 #     plt.show()
 
 
-# plot histogram
+# plot violin
 def plot_protein_level_distribution(df, y, data, outcome, prot_list):
     """
     Plots protein level distribution in a violin plot by cases and controls and splitting into Male, Female
@@ -81,6 +84,9 @@ def plot_protein_level_distribution(df, y, data, outcome, prot_list):
     :param prot_list: the list of proteins who
     :return:
     """
+    violin_dir = os.path.join(PLOTS_DIR, 'violin')
+    os.makedirs(violin_dir, exist_ok=True)
+
     sns.set_theme(style="whitegrid")
 
     dataframe = pd.concat([df, y], axis=1)
@@ -95,7 +101,7 @@ def plot_protein_level_distribution(df, y, data, outcome, prot_list):
         ax.set_xlabel(f'{outcome} Outcome')
         ax.set_ylabel('Protein level')
         ax.legend(loc='best', shadow=False, scatterpoints=1)
-        plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{prot_list[i]}_violin.png', bbox_inches='tight')
+        #plt.savefig(f'{violin_dir}/{data}_{outcome}_{prot_list[i]}_violin.png', bbox_inches='tight')
         plt.show()
 
 
@@ -134,8 +140,11 @@ def plot_protein_level_distribution(df, y, data, outcome, prot_list):
 
 
 # plot correlation plots
-def plot_correlation(df, y, data, outcome, prot_list):
+def plot_correlation(df, y, data, outcome, model_type, prot_list):
     #TODO: docstring
+    corr_dir = os.path.join(PLOTS_DIR, 'correlations')
+    os.makedirs(corr_dir, exist_ok=True)
+
     if len(prot_list) > 1000:
         font = 30
         figure_size = (50, 42)
@@ -160,12 +169,12 @@ def plot_correlation(df, y, data, outcome, prot_list):
     corr = df.corr(method='spearman').abs()
     sns.heatmap(corr, cmap='Blues')
 
-    plt.title(f"{data} {outcome} - All Samples (All proteins)")
+    # plt.title(f"{data} {outcome} - All Samples (All proteins)")
     plt.ylabel(r'$\leftarrow$ Increasing p value')
     plt.xlabel(r'Increasing p value $\rightarrow $')
     plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
     plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
-    #plt.savefig(f'{data}_{outcome}_all_samples_spearman_correlation.png')
+    plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_all_samples_spearman_correlation.png', bbox_inches='tight')
     plt.show()
 
     # Cases
@@ -175,12 +184,12 @@ def plot_correlation(df, y, data, outcome, prot_list):
     corr = df.corr(method='spearman').abs()
     sns.heatmap(corr, cmap='Blues')
 
-    plt.title(f"{data} {outcome} - Cases (All proteins)")
+    #plt.title(f"{data} {outcome} - Cases (All proteins)")
     plt.ylabel(r'$\leftarrow$ Increasing p value')
     plt.xlabel(r'Increasing p value $\rightarrow $')
     plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
     plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
-    #plt.savefig(f'{data}_{outcome}_cases_spearman_correlation.png')
+    plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_cases_spearman_correlation.png', bbox_inches='tight')
     plt.show()
 
     # Controls
@@ -190,12 +199,12 @@ def plot_correlation(df, y, data, outcome, prot_list):
     corr = df.corr(method='spearman').abs()
     sns.heatmap(corr, cmap='Blues')
 
-    plt.title(f"{data} {outcome} - Controls (All proteins)")
+    #plt.title(f"{data} {outcome} - Controls (All proteins)")
     plt.ylabel(r'$\leftarrow$ Increasing p value')
     plt.xlabel(r'Increasing p value $\rightarrow $')
     plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
     plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
-    plt.savefig(f'{data}_{outcome}_controls_spearman_correlation.png')
+    plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_controls_spearman_correlation.png', bbox_inches='tight')
     plt.show()
 
 
@@ -211,29 +220,33 @@ def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
     :param num_components:  the number of principal components
     :return:
     """
-
-    # fill NaNs with column means or else PCA gets error
-    df.fillna(df.mean(), inplace=True)  # fill na values with the mean
+    pca_dir = os.path.join(PLOTS_DIR, 'pca')
+    os.makedirs(pca_dir, exist_ok=True)
+    # # fill NaNs with column means or else PCA gets error
+    # df.fillna(df.mean(), inplace=True)  # fill na values with the mean
 
     col_names = df.columns.to_list()  # get column names: age_at_diagnosis, sex_M, protein_1, ..., protein_5284
     proteins = col_names[4:]
     X = df[proteins]  # get protein columns
     target_names = ['Controls', 'Cases']
-
-    parameters = {'axes.labelsize': 18,
-                  'legend.fontsize': 16,
-                  'xtick.labelsize': 16,
-                  'ytick.labelsize': 16,
-                  'axes.titlesize': 20}
-    plt.rcParams.update(parameters)
-    sns.set_theme()
+    # size = 36
+    # parameters = {'axes.labelsize': size,
+    #               'legend.fontsize': size,
+    #               'xtick.labelsize': size,
+    #               'ytick.labelsize': size,
+    #               'axes.titlesize': size}
+    # plt.rcParams.update(parameters)
+    # sns.set_theme()
 
     if cluster_by == 'samples':
 
         pca = PCA(n_components=num_components)
         X_r = pca.fit(X).transform(X)  # eigenvectors
 
-        plt.subplots(figsize=(10, 8))
+        pc1_var = "{:.2f}".format(pca.explained_variance_ratio_[0] * 100)
+        pc2_var = "{:.2f}".format(pca.explained_variance_ratio_[1] * 100)
+
+        # plt.subplots(figsize=(10, 8))
 
         colors = ['deepskyblue', 'magenta']
         lw = 2
@@ -242,24 +255,25 @@ def plot_pca(df, y, data,  outcome, cluster_by='samples', num_components=20):
             plt.scatter(X_r[y == i, 0], X_r[y == i, 1], color=color, alpha=.8, lw=lw,
                         label=target_name)
         plt.legend(loc='best', shadow=False, scatterpoints=1)
-        plt.title(f'PCA of {data} {outcome} clustered by {cluster_by}')
-        plt.xlabel('PC1')
-        plt.ylabel('PC2')
-        plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{cluster_by}_pca.png', bbox_inches='tight')
+        # plt.title(f'PCA of {data} {outcome} clustered by {cluster_by}')
+
+        plt.xlabel(f'PC1 ({pc1_var}%)')
+        plt.ylabel(f'PC2 ({pc2_var})%')
+        plt.savefig(f'{pca_dir}/{data}_{outcome}_cluster_by_{cluster_by}_pc1_pc2.png', bbox_inches='tight')
         plt.show()
 
     else:
         raise NotImplementedError
 
-    plt.figure()
-    plt.subplots(figsize=(10, 8))
+    #plt.figure()
+    #plt.subplots(figsize=(10, 8))
     x = list(range(1, num_components + 1))
     plt.bar(x, pca.explained_variance_ratio_, color='#c51b7d', edgecolor='black')
     plt.xlabel('Principal Component Index')
     plt.ylabel('Explained Variance Ratio')
     plt.xticks(ticks=x)  # set xticks to integer values corresponding to PC component
-    plt.title(f'Scree Plot of {data} {outcome} clustered by {cluster_by}')
-    plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{cluster_by}_pca_variance.png', bbox_inches='tight')
+   #  plt.title(f'Scree Plot of {data} {outcome} clustered by {cluster_by}')
+    plt.savefig(f'{pca_dir}/{data}_{outcome}_cluster_by_{cluster_by}_variance.png', bbox_inches='tight')
     plt.show()
 
     ## Save eigenvector of PCs
@@ -444,7 +458,10 @@ def plot_nonzero_coefficients(type, x_val, y_val, data, outcome, model_type, X_c
     :return:
     """
 
-    sns.set_theme()
+    coef_dir = os.path.join(PLOTS_DIR, 'model_coef')
+    os.makedirs(coef_dir, exist_ok=True)
+
+    sns.set_theme(style="whitegrid")
 
     fig, ax = plt.subplots(figsize=(10, 8))
     if X_choice in ['all_proteins', 'fdr_sig_proteins']:
@@ -460,28 +477,26 @@ def plot_nonzero_coefficients(type, x_val, y_val, data, outcome, model_type, X_c
     if type == 'nonzero_coef':
         ax.set_xlabel('Coefficient values')
         ax.set_ylabel(r'Nonzero model variables')
-        ax.set_title(f'{data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
+        # ax.set_title(f'{data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
 
-        plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef.png',
+        plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef={len(x_val)}.png',
                     bbox_inches='tight')
 
     elif type == 'sorted_nonzero_coef':
         ax.set_xlabel('Coefficient values')
         ax.set_ylabel(r'Nonzero model variables')
-        ax.set_title(
-            f'Sorted - {data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
+        # ax.set_title(f'Sorted - {data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
 
-        plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_sorted.png',
-                    bbox_inches='tight')
+        plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_sorted={len(x_val)}.png',
+                     bbox_inches='tight')
 
     elif type == 'abs_sorted_nonzero_coef':
         ax.set_xlabel('abs(Coefficient values)')
         ax.set_ylabel(r'Nonzero model variables')
-        ax.set_title(
-            f'Absolute value, Sorted - {data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
+        # ax.set_title(f'Absolute value, Sorted - {data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
 
-        plt.savefig(f'{ROOT_DIR}/results/plots/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_abs_sorted.png',
-            bbox_inches='tight')
+        plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_abs_sorted={len(x_val)}.png',
+             bbox_inches='tight')
     else:
         raise NotImplementedError
     plt.show()
