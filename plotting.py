@@ -174,7 +174,7 @@ def plot_correlation(df, y, data, outcome, model_type, prot_list):
     plt.xlabel(r'Increasing p value $\rightarrow $')
     plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
     plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
-    plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_all_samples_spearman_correlation.png', bbox_inches='tight')
+    # plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_all_samples_spearman_correlation.png', bbox_inches='tight')
     plt.show()
 
     # Cases
@@ -189,7 +189,7 @@ def plot_correlation(df, y, data, outcome, model_type, prot_list):
     plt.xlabel(r'Increasing p value $\rightarrow $')
     plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
     plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
-    plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_cases_spearman_correlation.png', bbox_inches='tight')
+    # plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_cases_spearman_correlation.png', bbox_inches='tight')
     plt.show()
 
     # Controls
@@ -204,7 +204,7 @@ def plot_correlation(df, y, data, outcome, model_type, prot_list):
     plt.xlabel(r'Increasing p value $\rightarrow $')
     plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
     plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
-    plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_controls_spearman_correlation.png', bbox_inches='tight')
+    # plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_controls_spearman_correlation.png', bbox_inches='tight')
     plt.show()
 
 
@@ -479,24 +479,24 @@ def plot_nonzero_coefficients(type, x_val, y_val, data, outcome, model_type, X_c
         ax.set_ylabel(r'Nonzero model variables')
         # ax.set_title(f'{data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
 
-        plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef={len(x_val)}.png',
-                    bbox_inches='tight')
+        # plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef={len(x_val)}.png',
+        #             bbox_inches='tight')
 
     elif type == 'sorted_nonzero_coef':
         ax.set_xlabel('Coefficient values')
         ax.set_ylabel(r'Nonzero model variables')
         # ax.set_title(f'Sorted - {data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
 
-        plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_sorted={len(x_val)}.png',
-                     bbox_inches='tight')
+        # plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_sorted={len(x_val)}.png',
+        #              bbox_inches='tight')
 
     elif type == 'abs_sorted_nonzero_coef':
         ax.set_xlabel('abs(Coefficient values)')
         ax.set_ylabel(r'Nonzero model variables')
         # ax.set_title(f'Absolute value, Sorted - {data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
 
-        plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_abs_sorted={len(x_val)}.png',
-             bbox_inches='tight')
+        # plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_abs_sorted={len(x_val)}.png',
+        #      bbox_inches='tight')
     else:
         raise NotImplementedError
     plt.show()
