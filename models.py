@@ -49,6 +49,7 @@ DAT_DIR = os.path.join(ROOT_DIR, 'results', 'datasets')  # .../somalogic/results
 # FDR_DAT_DIR = os.path.join(ROOT_DIR, 'results', 'all_proteins', 'age+sex+SampleGroup+ProcessTime+protlevel')
 PROT_LIST = os.path.join(ROOT_DIR, 'data', 'Somalogic_list_QC1.txt')
 SEED = 0
+PLOTS_DIR = os.path.join(ROOT_DIR, 'results', 'plots')
 
 
 def split_x_y(df, outcome):
@@ -81,7 +82,7 @@ def preprocess(df, nat_log_transf):
     print(prot_list)
     print(len(prot_list))
 
-    prot = df[prot_list] # proteins
+    prot = df[prot_list]  # proteins
 
     var = pd.get_dummies(var)  # convert categorical variables to dummy variables
 
@@ -441,6 +442,87 @@ def get_hyperparams(model_type):
     return hyperparams
 
 
+def plot_best_result(X, y, C, X_choice, data, outcome):
+    # plot CV ROC
+    res_dir = os.path.join(PLOTS_DIR, 'best_cv_result')
+    os.makedirs(res_dir, exist_ok=True)
+
+    lamb = float("{:.2f}".format(math.log10(1 / C)))
+    ####################################
+    rskf = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=0)
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    mean_fpr = np.linspace(0, 1, 100)
+    tprs = []
+    aucs = []
+    cf_matrix = np.zeros((2, 2))
+    for j, (train_index, test_index) in enumerate(rskf.split(X, y)):
+        # print("TRAIN:", train_index, "TEST:", test_index)
+        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+        y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+
+        lr = lasso(C=C, random_state=SEED)
+
+        lr.fit(X_train, y_train)
+
+        viz = plot_roc_curve(lr, X_test, y_test,
+                             name='ROC fold {}'.format(j),
+                             alpha=0.3, lw=1, ax=ax)
+        interp_tpr = np.interp(mean_fpr, viz.fpr, viz.tpr)
+        interp_tpr[0] = 0.0
+        tprs.append(interp_tpr)
+        aucs.append(viz.roc_auc)
+    ax.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
+            label='Chance', alpha=.8)
+
+    mean_tpr = np.mean(tprs, axis=0)
+    mean_tpr[-1] = 1.0
+    mean_auc = auc(mean_fpr, mean_tpr)
+    std_auc = np.std(aucs)
+    ax.plot(mean_fpr, mean_tpr, color=colors[i],
+            label=r'Mean ROC (AUC = %0.3f $\pm$ %0.3f)' % (mean_auc, std_auc),
+            lw=2, alpha=.8)
+
+    std_tpr = np.std(tprs, axis=0)
+    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+    ax.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,
+                    label=r'$\pm$ 1 std. dev.')
+
+    # ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
+    #        title=f"{data} {outcome} - {X_choice} - Receiver operating characteristic")
+    ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05])
+    ax.legend(bbox_to_anchor=(1, 1), fancybox=True, shadow=True, prop={'size': 6})
+
+    plt.savefig(f'{res_dir}/{data}_{outcome}_{X_choice}_train_auc_log10_lambda={lamb}.png', bbox_inches='tight')
+    plt.show()
+
+    # plotting other stats
+    y_pred = lr.predict(X_test)  # get predictions
+
+    # Get the confusion matrix
+    cf_matrix = confusion_matrix(y_test, y_pred)
+    print(cf_matrix)
+
+    group_names = ['TN', 'FP', 'FN', 'TP']
+    group_counts = ['{0:0.0f}'.format(value) for value in
+                    cf_matrix.flatten()]
+    group_percentages = ['{0:.2%}'.format(value) for value in
+                         cf_matrix.flatten() / np.sum(cf_matrix)]
+    labels = [f'{v1}\n{v2}\n{v3}' for v1, v2, v3 in
+              zip(group_names, group_counts, group_percentages)]
+    labels = np.asarray(labels).reshape(2, 2)
+    sns.heatmap(cf_matrix, annot=labels, fmt='', cmap='Blues',
+                xticklabels=['Controls', 'Cases'],
+                yticklabels=['Controls', 'Cases'])
+    plt.xlabel('Predicted Values')
+    plt.ylabel('True Values')
+    plt.savefig(f'{res_dir}/{data}_{outcome}_{X_choice}_confusion_matrix_log10_lambda={lamb}.png', bbox_inches='tight')
+    plt.show()
+    #####################################
+
+
 def get_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -489,7 +571,7 @@ if __name__ == "__main__":
     # Look at data
     # plot_pca(df=df, y=y, data=data, outcome=outcome, cluster_by='samples', num_components=20)
     # plot_age_distribution(df=df, y=y, data=data, outcome=outcome)
-    # plot_protein_level_distribution(df=df, y=y, data=data, outcome=outcome, prot_list=df.columns.tolist()[2:7])  # plot distribution of first 5 proteins
+    # plot_protein_level_distribution(df=df, y=y, data=data, outcome=outcome, prot_list=df.columns.tolist()[4:7])  # plot distribution of first 5 proteins
 
     X_choices = ['baseline', 'all_proteins']
 
@@ -532,7 +614,7 @@ if __name__ == "__main__":
         cv_results = pickle.load(fp)
     print(cv_results.keys())
     print(cv_results)
-    assert False
+
     plot_auc(model_type=model_type,
                     data=data,
                     outcome=outcome,
@@ -558,84 +640,6 @@ if __name__ == "__main__":
         train_features_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_train_features.pkl'
         with open(train_features_file, "wb") as fp:  # Pickling
             pickle.dump(train_features, fp)
-
-        # plot CV ROC
-        #####################################
-
-        # rskf = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=0)
-        #
-        # fig, ax = plt.subplots(figsize=(10, 8))
-        #
-        # mean_fpr = np.linspace(0, 1, 100)
-        # tprs = []
-        # aucs = []
-        # cf_matrix = np.zeros((2, 2))
-        # for j, (train_index, test_index) in enumerate(rskf.split(X, y)):
-        #     # print("TRAIN:", train_index, "TEST:", test_index)
-        #     X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-        #     y_train, y_test = y.iloc[train_index], y.iloc[test_index]
-        #
-        #     lr = lasso(C=C, random_state=SEED)
-        #
-        #     lr.fit(X_train, y_train)
-        #
-        #     viz = plot_roc_curve(lr, X_test, y_test,
-        #                          name='ROC fold {}'.format(j),
-        #                          alpha=0.3, lw=1, ax=ax)
-        #     interp_tpr = np.interp(mean_fpr, viz.fpr, viz.tpr)
-        #     interp_tpr[0] = 0.0
-        #     tprs.append(interp_tpr)
-        #     aucs.append(viz.roc_auc)
-        # ax.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
-        #         label='Chance', alpha=.8)
-        #
-        # mean_tpr = np.mean(tprs, axis=0)
-        # mean_tpr[-1] = 1.0
-        # mean_auc = auc(mean_fpr, mean_tpr)
-        # std_auc = np.std(aucs)
-        # ax.plot(mean_fpr, mean_tpr, color=colors[i],
-        #         label=r'Mean ROC (AUC = %0.3f $\pm$ %0.3f)' % (mean_auc, std_auc),
-        #         lw=2, alpha=.8)
-        #
-        # std_tpr = np.std(tprs, axis=0)
-        # tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-        # tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-        # ax.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,
-        #                 label=r'$\pm$ 1 std. dev.')
-        #
-        # ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
-        #        title=f"{data} {outcome} - {X_choice} - Receiver operating characteristic")
-        #
-        # ax.legend(bbox_to_anchor=(1, 1), fancybox=True, shadow=True, prop={'size': 6})
-        # plt.show()
-
-        ## plotting other stats
-        #     y_pred = lr.predict(X_test)  # get predictions
-        #
-        #     # Get the confusion matrix
-        #     cf_matrix = confusion_matrix(y_test, y_pred)
-        #     print(cf_matrix)
-
-
-        #
-        #     group_names = ['TN', 'FP', 'FN', 'TP']
-        #     group_counts = ['{0:0.0f}'.format(value) for value in
-        #                     cf_matrix.flatten()]
-        #     group_percentages = ['{0:.2%}'.format(value) for value in
-        #                          cf_matrix.flatten()/np.sum(cf_matrix)]
-        #     labels = [f'{v1}\n{v2}\n{v3}' for v1, v2, v3 in
-        #               zip(group_names,group_counts,group_percentages)]
-        #     labels = np.asarray(labels).reshape(2,2)
-        #     sns.heatmap(cf_matrix, annot=labels, fmt='', cmap='Blues',
-        #                 xticklabels=['Controls', 'Cases'],
-        #                yticklabels=['Controls', 'Cases'])
-        #     plt.xlabel('Predicted Values')
-        #     plt.ylabel('True Values')
-        #
-
-        # assert False
-
-        ######################################
 
         if X_choice == 'all_proteins':  # standardize protein levels (skipped if X_choice='baseline' dataset)
             features_to_scale = list(X.columns)
@@ -668,10 +672,14 @@ if __name__ == "__main__":
             scaler_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_scaler.pkl'
             pickle.dump(complete_summary, open(scaler_file, 'wb'))
 
+            # plot_best_result(X_transf, y, C, X_choice, data, outcome)
+
         elif X_choice == 'baseline':  # don't standardize (since don't have proteins) and directly fit on X
             # print(X.head())
             print(X.head())
             clf.fit(X, y)
+
+            # plot_best_result(X, y, C, X_choice, data, outcome)
 
         else:
             raise NotImplementedError
@@ -705,5 +713,5 @@ if __name__ == "__main__":
         nonzero_prot_list = [protein for protein in nonzero_coef_names if protein not in ['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup']]  # keep only proteins
 
         if X_choice == 'all_proteins':
-            plot_correlation(df=X, y=y, data=data, outcome=outcome, prot_list=nonzero_prot_list)
+            plot_correlation(df=X, y=y, data=data, outcome=outcome, model_type=model_type, prot_list=nonzero_prot_list)
             # plot_correlation(df=X, y=y, data=data, outcome=outcome, prot_list=X.columns.to_list()[4:54])
