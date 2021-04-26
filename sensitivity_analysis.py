@@ -4,7 +4,26 @@ A few important points:
 1. we use the SomaLogic Normalized dataset
 2. We preprocess the protein levels by natural log transforming them
 3. We standardize protein levels during Stratified 5 fold cross validation by running StandardScaler() on the 4 training folds and scaling the validation fold
-Note: required feature columns of dataset: age_at_diagnosis, sex, ProcessTime, SampleGroup, 5284 proteins
+
+NOTES: ------------------------------------------------------
+Baseline model: age_at_diagnosis, sex, ProcessTime, SampleGroup, 6 clinical comorbidities, smoking
+Protein model: age_at_diagnosis, sex, ProcessTime, SampleGroup + 6 clinical comorbidities + smoking + 4984 proteins
+
+Due to smoking not being present in CHUM data, we remove the CHUM samples (105) so our original
+sample size of 417 is reduced down to 312.
+
+Furthermore, for the 7 add features (6 clinical + smoking), encoding is as follows:
+- com_diabetes: Diabetes - "0 No, 1 Yes, -1 Don't know"
+- com_chronic_pulm: Chronic obstructive pulmonary disease (COPD) - "0 No, 1 Yes, -1 Don't know"
+- com_chronic_kidney: Chronic kidney disease - "0 No, 1 Yes, -1 Don't know"
+- com_heart_failure: Congestive heart failure - "0 No, 1 Yes, -1 Don't know"
+- com_hypertension: Hypertension - "0 No, 1 Yes, -1 Don't know"
+- com_liver: Liver Disease - "0 No, 1 Yes, -1 Don't know"
+- smoking: Smoking status - "0 Smoker, 1 Ex smoker, 2 Never smoker, -1 Don't know, -3 Prefer not to answer"
+
+For the 6 clinical features, we set anything other than 1 to a 0 to form a binary variable
+For smoking, we set anything other than 0, 1, 2, to a 2 to create a 3 category variable. After dummy encoding, we
+drop the smoking_0 column.
 """
 
 import pandas as pd
@@ -17,11 +36,9 @@ import pickle
 from utils import boolean
 
 from plotting import plot_pca
-from plotting import plot_nonzero_coefficients
 from plotting import plot_auc
 from plotting import plot_age_distribution
 from plotting import plot_protein_level_distribution
-from plotting import plot_correlation
 
 sns.set_theme()
 from sklearn.metrics import plot_roc_curve
@@ -113,6 +130,7 @@ def preprocess(df, nat_log_transf):
 
     df = pd.concat([var, prot], axis=1)  # merge dataframes by column
     idx_to_drop = df[df.SampleGroup < 1].index
+    print(idx_to_drop)
 
     df = df.drop(df[df.SampleGroup < 1].index)  # drop CHUM data since Clinical features don't have CHUM data
 
@@ -139,7 +157,6 @@ def preprocess(df, nat_log_transf):
     # "0 Smoker, 1 Ex smoker, 2 Never smoker, -1 Don't know, -3 Prefer not to answer"
     clinical.loc[~clinical["smoking"].isin([0, 1, 2]), "smoking"] = 2  # set -1, -3 to 2 (Never Smoker)
 
-
     # pd.read_csv converts all values to float due to having NaNs so values back to int
     for feature in clinical.columns.tolist()[1:]:  # excluding anonymized_patient_id
         clinical[feature] = clinical[feature].astype(int)
@@ -148,8 +165,9 @@ def preprocess(df, nat_log_transf):
 
     # dummy encoding for smoking (other comorbidities are 0 and 1 already)
     clinical = pd.get_dummies(clinical, columns=[columns[7]], drop_first=True)  # drop one of the columns so have n-1
-
-    df = pd.merge(clinical, df, how='inner', on='anonymized_patient_id')
+    df = pd.merge(df, clinical, how='inner', on='anonymized_patient_id')  # GOTCHA: merge (df, clinical) NOT (clinical, df) which will change order of rows to clinical dataset
+    print(df.head())
+    print(df.shape)
     df = df.drop(columns=['anonymized_patient_id'])
 
     return df, idx_to_drop
@@ -176,7 +194,6 @@ def get_samples(df, data, outcome, choice, fdr=0.01):
 
     if choice == 'baseline':
         df = df[NON_PROT_FEAT]
-
     elif choice == 'all_proteins':
         df = df
 
@@ -651,6 +668,132 @@ def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
         raise NotImplementedError
 
 
+# plot correlation plots
+def plot_correlation(df, y, data, outcome, model_type, prot_list):
+    corr_dir = os.path.join(PLOTS_DIR, 'sensitivity_analysis', 'correlations')
+    os.makedirs(corr_dir, exist_ok=True)
+
+    if len(prot_list) > 1000:
+        font = 30
+        figure_size = (50, 42)
+    else:
+        font = 10
+        figure_size = (10, 8)
+
+    parameters = {'axes.labelsize': font * 2,
+                  'legend.fontsize': font * 2,
+                  'xtick.labelsize': font,
+                  'ytick.labelsize': font,
+                  'axes.titlesize': font * 2}
+    plt.rcParams.update(parameters)
+
+    cases = df.loc[y == 1]
+    controls = df.loc[y == 0]
+
+    plt.subplots(figsize=figure_size)
+
+    # All samples
+    df = df[prot_list]
+    corr = df.corr(method='spearman').abs()
+    sns.heatmap(corr, cmap='Blues')
+
+    # plt.title(f"{data} {outcome} - All Samples (All proteins)")
+    plt.ylabel(r'$\leftarrow$ Increasing p value')
+    plt.xlabel(r'Increasing p value $\rightarrow $')
+    plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
+    plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
+    plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_all_samples_spearman_correlation.png', bbox_inches='tight')
+    plt.show()
+
+    # Cases
+    plt.subplots(figsize=figure_size)
+
+    df = cases[prot_list]
+    corr = df.corr(method='spearman').abs()
+    sns.heatmap(corr, cmap='Blues')
+
+    #plt.title(f"{data} {outcome} - Cases (All proteins)")
+    plt.ylabel(r'$\leftarrow$ Increasing p value')
+    plt.xlabel(r'Increasing p value $\rightarrow $')
+    plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
+    plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
+    plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_cases_spearman_correlation.png', bbox_inches='tight')
+    plt.show()
+
+    # Controls
+    plt.subplots(figsize=figure_size)
+
+    df = controls[prot_list]
+    corr = df.corr(method='spearman').abs()
+    sns.heatmap(corr, cmap='Blues')
+
+    #plt.title(f"{data} {outcome} - Controls (All proteins)")
+    plt.ylabel(r'$\leftarrow$ Increasing p value')
+    plt.xlabel(r'Increasing p value $\rightarrow $')
+    plt.xticks(range(0, len(prot_list)), prot_list, fontsize=6)
+    plt.yticks(range(0, len(prot_list)), prot_list, fontsize=6)
+    plt.savefig(f'{corr_dir}/{model_type}_{data}_{outcome}_controls_spearman_correlation.png', bbox_inches='tight')
+    plt.show()
+
+
+def plot_nonzero_coefficients(type, x_val, y_val, data, outcome, model_type, X_choice, color):
+    """
+    Plots the coefficient values of each variable in the model if the coefficient is nonzero.
+    :param type: Whether to plot nonzero coefficients, sorted nonzero coefficients, or sorted absolute value of the coefficients
+    :param x_val: values for the x-axis i.e. the coefficient values
+    :param y_val: values for the y-axis i.e. feature variable names corresponding to coefficient values on x-axis
+    :param data: the dataset used e.g. infe, non_infe
+    :param outcome: the outcome name e.g. A2, A3, B2, C1
+    :param model_type:
+    :param X_choice: The X dataframe used
+    :param color: colors for each plot
+    :return:
+    """
+
+    coef_dir = os.path.join(PLOTS_DIR, 'sensitivity_analysis', 'model_coef')
+    os.makedirs(coef_dir, exist_ok=True)
+
+    sns.set_theme(style="whitegrid")
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    if X_choice in ['all_proteins', 'fdr_sig_proteins']:
+        ax.tick_params(axis='y', labelsize=6)
+
+    # Plot nonzero coefficients
+    y_pos = np.arange(len(y_val))
+    ax.barh(y_pos, x_val, align='center', color=color, edgecolor='black')
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(y_val)
+    ax.invert_yaxis()  # labels read top-to-bottom
+
+    if type == 'nonzero_coef':
+        ax.set_xlabel('Coefficient values')
+        ax.set_ylabel(r'Nonzero model variables')
+        # ax.set_title(f'{data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
+
+        plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef={len(x_val)}.png',
+                    bbox_inches='tight')
+
+    elif type == 'sorted_nonzero_coef':
+        ax.set_xlabel('Coefficient values')
+        ax.set_ylabel(r'Nonzero model variables')
+        # ax.set_title(f'Sorted - {data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
+
+        plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_sorted={len(x_val)}.png',
+                     bbox_inches='tight')
+
+    elif type == 'abs_sorted_nonzero_coef':
+        ax.set_xlabel('abs(Coefficient values)')
+        ax.set_ylabel(r'Nonzero model variables')
+        # ax.set_title(f'Absolute value, Sorted - {data} {outcome} {model_type} - {X_choice}: number of nonzero coefficients = {len(x_val)}')
+
+        plt.savefig(f'{coef_dir}/{data}_{outcome}_{model_type}_{X_choice}_nonzero_coef_abs_sorted={len(x_val)}.png',
+             bbox_inches='tight')
+    else:
+        raise NotImplementedError
+    plt.show()
+
+
 def get_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -696,7 +839,8 @@ if __name__ == "__main__":
     X, y = split_x_y(df, outcome)
     df, idx_to_drop = preprocess(X, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284
     y = y.drop(idx_to_drop)
-
+    print(df.head())
+    print(y)
     # Look at data
     # plot_pca(df=df, y=y, data=data, outcome=outcome, cluster_by='samples', num_components=20)
     # plot_age_distribution(df=df, y=y, data=data, outcome=outcome)
@@ -722,6 +866,7 @@ if __name__ == "__main__":
         for X_choice in X_choices:
             X = get_samples(df=df, data=data, outcome=outcome, choice=X_choice, fdr=0.01)
             print(X.shape)
+            print(X.head())
             cv_result = repeated_stratified_kfold_gridsearchcv(X=X,
                                                                 y=y,
                                                                 X_choice=X_choice,
@@ -744,7 +889,6 @@ if __name__ == "__main__":
         cv_results = pickle.load(fp)
     print(cv_results.keys())
     print(cv_results)
-    assert False
 
     plot_auc(model_type=model_type,
                     data=data,
@@ -853,20 +997,17 @@ if __name__ == "__main__":
         if X_choice == 'all_proteins':  # standardize protein levels (skipped if X_choice='baseline' dataset)
             features_to_scale = list(X.columns)
 
-            for feature in features_to_scale:
-                summary = {}
-                summary['mean'] = X[feature].mean(axis=0)
-                summary['std'] = X[feature].std(axis=0, ddof=0)  # ddof=0 (default = 1) to be consistent with StandardScaler()
-                complete_summary[feature] = summary  # store dictionary containing mean and std of protein inside dictionary
+            # for feature in features_to_scale:
+            #     summary = {}
+            #     summary['mean'] = X[feature].mean(axis=0)
+            #     summary['std'] = X[feature].std(axis=0, ddof=0)  # ddof=0 (default = 1) to be consistent with StandardScaler()
+            #     complete_summary[feature] = summary  # store dictionary containing mean and std of protein inside dictionary
+            #
+            # print(complete_summary)
 
-            print(complete_summary)
+            features_to_scale = [x for x in features_to_scale if x not in NON_PROT_FEAT]
 
-            features_to_scale.remove('age_at_diagnosis')
-            features_to_scale.remove('sex_M')
-            features_to_scale.remove('ProcessTime')
-            features_to_scale.remove('SampleGroup')  # drop since want to standardize proteins only
-
-            print(features_to_scale)  # features_to_scale should be a list of all 5284 protein names
+            print(len(features_to_scale))  # features_to_scale should be a list of all 5284 protein names
             # See what model coefficient values are if final training done on standardized vs. nonstandardized data
             X_transf = X.copy()
             features = X_transf[features_to_scale]
@@ -878,8 +1019,8 @@ if __name__ == "__main__":
             clf.fit(X_transf, y)
 
             # save the scaler dictionary
-            scaler_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_scaler.pkl'
-            pickle.dump(complete_summary, open(scaler_file, 'wb'))
+            # scaler_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_scaler.pkl'
+            # pickle.dump(complete_summary, open(scaler_file, 'wb'))
 
         elif X_choice == 'baseline':  # don't standardize (since don't have proteins) and directly fit on X
             # print(X.head())
@@ -918,5 +1059,5 @@ if __name__ == "__main__":
         nonzero_prot_list = [protein for protein in nonzero_coef_names if protein not in ['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup']]  # keep only proteins
 
         if X_choice == 'all_proteins':
-            plot_correlation(df=X, y=y, data=data, outcome=outcome, prot_list=nonzero_prot_list)
+            plot_correlation(df=X, y=y, data=data, outcome=outcome, model_type=model_type, prot_list=nonzero_prot_list)
             # plot_correlation(df=X, y=y, data=data, outcome=outcome, prot_list=X.columns.to_list()[4:54])
