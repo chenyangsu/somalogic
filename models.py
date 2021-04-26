@@ -567,7 +567,9 @@ if __name__ == "__main__":
 
     X, y = split_x_y(df, outcome)
     df = preprocess(X, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284
-
+    print(df.head())
+    print(y)
+    assert False
     # Look at data
     # plot_pca(df=df, y=y, data=data, outcome=outcome, cluster_by='samples', num_components=20)
     # plot_age_distribution(df=df, y=y, data=data, outcome=outcome)
@@ -634,7 +636,6 @@ if __name__ == "__main__":
         C = cv_results[X_choice]['best_hyperparam']['C']
         clf = lasso(C=C, random_state=SEED)
         X = get_samples(df=df, data=data, outcome=outcome, choice=X_choice, fdr=0.01)
-
         # save training features
         train_features = list(X.columns)
         train_features_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_train_features.pkl'
@@ -650,8 +651,7 @@ if __name__ == "__main__":
                 summary['std'] = X[feature].std(axis=0, ddof=0)  # ddof=0 (default = 1) to be consistent with StandardScaler()
                 complete_summary[feature] = summary  # store dictionary containing mean and std of protein inside dictionary
 
-            print(complete_summary)
-
+            assert False
             features_to_scale.remove('age_at_diagnosis')
             features_to_scale.remove('sex_M')
             features_to_scale.remove('ProcessTime')
