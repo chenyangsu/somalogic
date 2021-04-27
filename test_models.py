@@ -215,7 +215,7 @@ if __name__ == "__main__":
         plt.legend(loc=4)
         plt.xlabel("False Positive Rate")
         plt.ylabel("True Positive Rate")
-        fig_path = os.path.join(TEST_DIR, f'auc_curve_{X_choice}')
+        fig_path = os.path.join(TEST_DIR, f'{data}_{outcome}_{X_choice}_auc_curve.png')
         plt.savefig(fig_path, bbox_inches='tight')
         plt.show()
 
@@ -230,7 +230,7 @@ if __name__ == "__main__":
                 'fpr': fpr,
                 'tpr': tpr}
 
-        file_name = os.path.join(TEST_DIR, f'test_results_{X_choice}.pkl')
+        file_name = os.path.join(TEST_DIR, f'{data}_{outcome}_{X_choice}_test_results.pkl')
         with open(file_name, 'wb') as fp:
             pickle.dump(dict, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
