@@ -19,7 +19,9 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
+from sklearn import metrics
 import scikitplot as skplt
+from sklearn.metrics import confusion_matrix
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # .../somalogic
 DAT_DIR = os.path.join(ROOT_DIR, 'results', 'datasets')  # .../somalogic/results/datasets
@@ -166,7 +168,7 @@ if __name__ == "__main__":
     with open(train_features_file, "rb") as fp:  # Unpickling
         train_features = pickle.load(fp)
 
-    #print((list(model_coef.keys())))
+        #print((list(model_coef.keys())))
 
     df = preprocess(X, scaler_dict, train_features, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284 (same order of proteins as in training set)
 
@@ -201,9 +203,37 @@ if __name__ == "__main__":
         # result = loaded_model.score(X_test, Y_test)
         # print(result)
 
-        # get predictions
-        predictions = model.predict_proba(X_test_transf)
+        # get prediction probabilities for calculating AUC
+        y_pred_proba = model.predict_proba(X_test_transf)[:, 1]  # cases
 
-        # plot roc curve
-        skplt.metrics.plot_roc(y, predictions)
+        fpr, tpr, _ = metrics.roc_curve(y, y_pred_proba)
+        auc = metrics.roc_auc_score(y, y_pred_proba)
+
+        plt.plot(fpr, tpr, label="Test Set, auc=" + "{:.3f}".format(auc))  # plot roc curve
+        plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='r',
+                 label='Chance', alpha=.8)  # plot diagonal line
+        plt.legend(loc=4)
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        fig_path = os.path.join(TEST_DIR, f'auc_curve_{X_choice}')
+        plt.savefig(fig_path, bbox_inches='tight')
         plt.show()
+
+        y_pred = model.predict(X_test_transf)  # get predictions
+        cf_matrix = confusion_matrix(y, y_pred)
+        print(cf_matrix)
+
+        # print(np.array(y))
+        dict = {'y': y,
+                'y_pred_proba': y_pred_proba,
+                'y_pred': y_pred,
+                'fpr': fpr,
+                'tpr': tpr}
+
+        file_name = os.path.join(TEST_DIR, f'test_results_{X_choice}.pkl')
+        with open(file_name, 'wb') as fp:
+            pickle.dump(dict, fp, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # # plot roc curve
+        # skplt.metrics.plot_roc(y, predictions)
+        # plt.show()
