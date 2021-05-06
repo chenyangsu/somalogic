@@ -9,3 +9,4 @@ hdbscan
 openpyxl
 scikit-plot
 tableone
+bioinfokit
