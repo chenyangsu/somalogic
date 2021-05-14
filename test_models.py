@@ -219,9 +219,33 @@ if __name__ == "__main__":
         plt.savefig(fig_path, bbox_inches='tight')
         plt.show()
 
-        y_pred = model.predict(X_test_transf)  # get predictions
-        cf_matrix = confusion_matrix(y, y_pred)
-        print(cf_matrix)
+        # y_pred = model.predict(X_test_transf)  # get predictions
+        # cf_matrix = confusion_matrix(y, y_pred)
+        # print(cf_matrix)
+
+        if X_choice == 'baseline' and outcome == 'A2':
+            threshold = 0.20175627180341194  # threshold found from training set
+            y_pred = (model.predict_proba(X_test_transf)[:, 1] > threshold).astype('float')
+            cf_matrix = confusion_matrix(y, y_pred)
+            print(f'{X_choice} {outcome}:\n {cf_matrix}')
+
+        elif X_choice == 'all_proteins' and outcome == 'A2':
+            threshold = 0.2545911437944613
+            y_pred = (model.predict_proba(X_test_transf)[:, 1] > threshold).astype('float')
+            cf_matrix = confusion_matrix(y, y_pred)
+            print(f'{X_choice} {outcome}:\n {cf_matrix}')
+
+        elif X_choice == 'baseline' and outcome == 'A3':
+            threshold = 0.5126246720005565
+            y_pred = (model.predict_proba(X_test_transf)[:, 1] > threshold).astype('float')
+            cf_matrix = confusion_matrix(y, y_pred)
+            print(f'{X_choice} {outcome}:\n {cf_matrix}')
+
+        elif X_choice == 'all_proteins' and outcome == 'A3':
+            threshold = 0.5308773387538612
+            y_pred = (model.predict_proba(X_test_transf)[:, 1] > threshold).astype('float')
+            cf_matrix = confusion_matrix(y, y_pred)
+            print(f'{X_choice} {outcome}:\n {cf_matrix}')
 
         # print(np.array(y))
         dict = {'y': y,
@@ -234,6 +258,3 @@ if __name__ == "__main__":
         with open(file_name, 'wb') as fp:
             pickle.dump(dict, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # # plot roc curve
-        # skplt.metrics.plot_roc(y, predictions)
-        # plt.show()
