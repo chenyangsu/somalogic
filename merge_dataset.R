@@ -11,7 +11,7 @@ library(readr)  # for read_tsv()
 library(data.table)
 library(readxl)
 library(writexl)  # save in excel file
-
+library(tidyverse) 
 
 args = commandArgs(trailingOnly=TRUE)
 
@@ -29,7 +29,8 @@ setwd("/home/richards/chen-yang.su/projects/richards/chen-yang.su/somalogic")
 
 
 if (soma_data == "normalized") {  # normalized SomaLogic data
-  my_adat <- read.adat("./data/McGill-Richards-C-19 - SomaScan Data/MCG-200150/SS-200150_v4_ACDPlasma.hybNorm.medNormInt.plateScale.calibrate.anmlQC.qcCheck.medNormRefSMP.adat")
+  my_adat <-  read.adat("./data/SS-200150_v4_ACDPlasma.hybNorm.medNormInt.plateScale.calibrate.anmlQC.qcCheck.medNormRefSMP.adat")
+    # read.adat("./data/McGill-Richards-C-19 - SomaScan Data/MCG-200150/SS-200150_v4_ACDPlasma.hybNorm.medNormInt.plateScale.calibrate.anmlQC.qcCheck.medNormRefSMP.adat")
 
 } else if (soma_data == "unnormalized") {  # unnormalized SomaLogic data
   my_adat <- read.adat("./data/McGill-Richards-C-19 - SomaScan Data/MCG-200150/SS-200150_v4_ACDPlasma.hybNorm.medNormInt.plateScale.calibrate.anmlQC.qcCheck.adat")
@@ -38,7 +39,7 @@ if (soma_data == "normalized") {  # normalized SomaLogic data
 }
 
 
-infe_dat <- read_tsv("./data/Somalogic_Inf_417_A3.txt")  # subset data for infected group (symptom onset day < 14)
+infe_dat <- read_tsv("./data/Somalogic_Inf_417_A3_0526.txt")  # subset data for infected group (symptom onset day < 14)
 non_infe_dat <- read_tsv("./data/Somalogic_NonInf_219_A3.txt")  # subset data for cleared group (symptom onset day > 31).
 
 
@@ -50,10 +51,18 @@ if (nat_log_transf == "TRUE") {  # Log Tranform with Base e
 }
 
 
+to_remove <- which(colnames(my_adat) %in% grep("^NoneX\\.[0-9]",colnames(my_adat),value=TRUE))
+my_adat <- my_adat[, -to_remove]
+
 length(getFeatureNames(my_adat))  # 5284 proteins ()
 
 prot_list <- getFeatureNames(my_adat)  # get list of proteins
 prot_list <- as.character(prot_list)  # convert to character
+
+
+x <- my_adat[, prot_list]
+plot(density(c(as.matrix(x))))
+
 
 keep_cols <- c("SubjectID", "anonymized_patient_id", "PlateId", "SampleGroup", "sex", "age_at_diagnosis",
                "Days_symptom_update3", "ProcessTime", "A2", "A3", "B2", "C1")  # relevant columns that we want to keep
