@@ -23,7 +23,6 @@ from plotting import plot_age_distribution
 from plotting import plot_protein_level_distribution
 from plotting import plot_correlation
 
-sns.set_theme()
 from sklearn.metrics import plot_roc_curve
 from sklearn.metrics import auc
 from sklearn.model_selection import RepeatedStratifiedKFold
@@ -79,8 +78,8 @@ def preprocess(df, nat_log_transf):
     with open(PROT_LIST) as f:
         protein = f.readlines()
     prot_list = [x.strip() for x in protein]
-    print(prot_list)
-    print(len(prot_list))
+    # print(prot_list)
+    # print(len(prot_list))
 
     prot = df[prot_list]  # proteins
 
@@ -211,6 +210,7 @@ def repeated_stratified_kfold_gridsearchcv(X,
     rskf = RepeatedStratifiedKFold(n_splits=n_splits, n_repeats=n_repeats, random_state=random_state)
 
     C = hyperparams['C']
+    best_thresholds, best_youden_js = [], []
 
     if model_type == 'lasso':
         results = {'C': C, 'mean_train_score': [], 'mean_val_score': [], 'std_train_score': [], 'std_val_score': [],
@@ -254,6 +254,20 @@ def repeated_stratified_kfold_gridsearchcv(X,
                     val_aucs.append(val_auc)
                     print(f'Finished {X_choice} -- Hyperparameter {i+1}/{len(C)} (C={c}): Experiment {j+1}/{n_splits*n_repeats}')
 
+                #     ###########  Find threshold for Youden's J
+                #     # get threshold corresponding to max Youden's index J for each auc curve and
+                #     # averege all 50 thresholds to get a single mean threshold
+                #     fpr, tpr, thresholds = metrics.roc_curve(y_val, clf.predict_proba(X_val_transf)[:, 1])
+                #     youden_j = list(tpr - fpr)
+                #     max_j_idx = youden_j.index(max(youden_j))  # get index of maximum Youden's J
+                #     best_threshold = thresholds[max_j_idx]  # get best threshold
+                #     best_youden_js.append(max(youden_j))  # save max youden J for each roc curve
+                #     best_thresholds.append(best_threshold)
+                #     ############
+                # print(len(best_thresholds), best_thresholds)
+                # print(len(best_youden_js), best_youden_js)
+                # assert False
+
                 results['mean_train_score'].append(np.mean(train_aucs))
                 results['mean_val_score'].append(np.mean(val_aucs))
                 results['std_train_score'].append(np.std(train_aucs))
@@ -277,6 +291,20 @@ def repeated_stratified_kfold_gridsearchcv(X,
                     train_aucs.append(train_auc)
                     val_aucs.append(val_auc)
                     print(f'Finished {X_choice} -- Hyperparameter {i+1}/{len(C)} (C={c}): Experiment {j+1}/{n_splits*n_repeats}')
+
+                #     ###########  Find threshold for Youden's J
+                #     # get threshold corresponding to max Youden's index J for each auc curve and
+                #     # averege all 50 thresholds to get a single mean threshold
+                #     fpr, tpr, thresholds = metrics.roc_curve(y_val, clf.predict_proba(X_val)[:, 1])
+                #     youden_j = list(tpr - fpr)
+                #     max_j_idx = youden_j.index(max(youden_j))  # get index of maximum Youden's J
+                #     best_threshold = thresholds[max_j_idx]  # get best threshold
+                #     best_youden_js.append(max(youden_j))  # save max youden J for each roc curve
+                #     best_thresholds.append(best_threshold)
+                #     ############
+                # print(len(best_thresholds), best_thresholds)
+                # print(len(best_youden_js), best_youden_js)
+                # assert False
 
                 results['mean_train_score'].append(np.mean(train_aucs))
                 results['mean_val_score'].append(np.mean(val_aucs))
@@ -485,9 +513,9 @@ def plot_best_result(X, y, C, X_choice, data, outcome):
             lw=2, alpha=.8)
 
     std_tpr = np.std(tprs, axis=0)
-    tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
-    tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-    ax.fill_between(mean_fpr, tprs_lower, tprs_upper, color='grey', alpha=.2,
+    tprs_std_upper = np.minimum(mean_tpr + std_tpr, 1)
+    tprs_std_lower = np.maximum(mean_tpr - std_tpr, 0)
+    ax.fill_between(mean_fpr, tprs_std_lower, tprs_std_upper, color='grey', alpha=.2,
                     label=r'$\pm$ 1 std. dev.')
 
     # ax.set(xlim=[-0.05, 1.05], ylim=[-0.05, 1.05],
@@ -497,6 +525,25 @@ def plot_best_result(X, y, C, X_choice, data, outcome):
 
     plt.savefig(f'{res_dir}/{data}_{outcome}_{X_choice}_train_auc_log10_lambda={lamb}.png', bbox_inches='tight')
     plt.show()
+
+    # get confidence intervals
+    ci_tpr = 1.96 * (std_tpr/math.sqrt(50))
+    tprs_ci_upper = np.minimum(mean_tpr + ci_tpr, 1)
+    tprs_ci_lower = np.maximum(mean_tpr - ci_tpr, 0)
+
+    ### Save stats in dictionary for plotting
+    dict = {'mean_fpr': mean_fpr,
+            'mean_tpr': mean_tpr,
+            'mean_auc': mean_auc,
+            'std_auc': std_auc,
+            'tprs_std_lower': tprs_std_lower,
+            'tprs_std_upper': tprs_std_upper,
+            'tprs_ci_lower': tprs_ci_lower,
+            'tprs_ci_upper': tprs_ci_upper}
+
+    file_name = os.path.join(ROOT_DIR, 'results', 'models',  f'{data}_{outcome}_{X_choice}_train_results.pkl')
+    with open(file_name, 'wb') as fp:
+        pickle.dump(dict, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
     # plotting other stats
     y_pred = lr.predict(X_test)  # get predictions
@@ -569,7 +616,6 @@ if __name__ == "__main__":
     df = preprocess(X, nat_log_transf)  # age_at_diagnosis, sex_M, ProcessTime, SampleGroup, protein 1, ... , 5284
     print(df.head())
     print(y)
-    assert False
     # Look at data
     # plot_pca(df=df, y=y, data=data, outcome=outcome, cluster_by='samples', num_components=20)
     # plot_age_distribution(df=df, y=y, data=data, outcome=outcome)
@@ -590,7 +636,6 @@ if __name__ == "__main__":
     if config['params_search']:  # run hyperparam search and save model results
 
         os.makedirs(model_dir, exist_ok=True)
-
         for X_choice in X_choices:
             X = get_samples(df=df, data=data, outcome=outcome, choice=X_choice, fdr=0.01)
 
@@ -623,7 +668,6 @@ if __name__ == "__main__":
                     hyperparams=hyperparams,
                     cv_model_results=cv_results,
                     colors=colors)
-
     # use best hyperparameter to train on entire dataset
 
     # create directory for saving final model
@@ -651,7 +695,6 @@ if __name__ == "__main__":
                 summary['std'] = X[feature].std(axis=0, ddof=0)  # ddof=0 (default = 1) to be consistent with StandardScaler()
                 complete_summary[feature] = summary  # store dictionary containing mean and std of protein inside dictionary
 
-            assert False
             features_to_scale.remove('age_at_diagnosis')
             features_to_scale.remove('sex_M')
             features_to_scale.remove('ProcessTime')
@@ -672,14 +715,14 @@ if __name__ == "__main__":
             scaler_file = f'{final_model_dir}/{X_choice}-soma_data={soma_data}-nat_log_transf={nat_log_transf}-standardize={standardize}_{data}_{outcome}_scaler.pkl'
             pickle.dump(complete_summary, open(scaler_file, 'wb'))
 
-            # plot_best_result(X_transf, y, C, X_choice, data, outcome)
+            plot_best_result(X_transf, y, C, X_choice, data, outcome)
 
         elif X_choice == 'baseline':  # don't standardize (since don't have proteins) and directly fit on X
             # print(X.head())
             print(X.head())
             clf.fit(X, y)
 
-            # plot_best_result(X, y, C, X_choice, data, outcome)
+            plot_best_result(X, y, C, X_choice, data, outcome)
 
         else:
             raise NotImplementedError
@@ -693,14 +736,14 @@ if __name__ == "__main__":
         sorted_nonzero_coef, sorted_nonzero_coef_names, abs_sorted_nonzero_coef, abs_sorted_nonzero_coef_names = get_model_coefficients(clf=clf, X=X)
 
         # plot nonzero coefficient values to determine the effect sizes
-        plot_nonzero_coefficients(type='nonzero_coef', x_val=nonzero_coef, y_val=nonzero_coef_names,
-                                  data=data, outcome=outcome, model_type=model_type, X_choice=X_choice, color=colors[i])
-
-        plot_nonzero_coefficients(type='sorted_nonzero_coef', x_val=sorted_nonzero_coef, y_val=sorted_nonzero_coef_names,
-                                  data=data, outcome=outcome, model_type=model_type, X_choice=X_choice, color=colors[i])
-
-        plot_nonzero_coefficients(type='abs_sorted_nonzero_coef', x_val=abs_sorted_nonzero_coef, y_val=abs_sorted_nonzero_coef_names,
-                                  data=data, outcome=outcome, model_type=model_type, X_choice=X_choice, color=colors[i])
+        # plot_nonzero_coefficients(type='nonzero_coef', x_val=nonzero_coef, y_val=nonzero_coef_names,
+        #                           data=data, outcome=outcome, model_type=model_type, X_choice=X_choice, color=colors[i])
+        #
+        # plot_nonzero_coefficients(type='sorted_nonzero_coef', x_val=sorted_nonzero_coef, y_val=sorted_nonzero_coef_names,
+        #                           data=data, outcome=outcome, model_type=model_type, X_choice=X_choice, color=colors[i])
+        #
+        # plot_nonzero_coefficients(type='abs_sorted_nonzero_coef', x_val=abs_sorted_nonzero_coef, y_val=abs_sorted_nonzero_coef_names,
+        #                           data=data, outcome=outcome, model_type=model_type, X_choice=X_choice, color=colors[i])
 
         # save model coefficients
         model_coef_results = dict(zip(nonzero_coef_names, nonzero_coef))
@@ -713,5 +756,6 @@ if __name__ == "__main__":
         nonzero_prot_list = [protein for protein in nonzero_coef_names if protein not in ['age_at_diagnosis', 'sex_M', 'ProcessTime', 'SampleGroup']]  # keep only proteins
 
         if X_choice == 'all_proteins':
+            print(X.head())
             plot_correlation(df=X, y=y, data=data, outcome=outcome, model_type=model_type, prot_list=nonzero_prot_list)
             # plot_correlation(df=X, y=y, data=data, outcome=outcome, prot_list=X.columns.to_list()[4:54])
