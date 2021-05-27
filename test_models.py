@@ -20,7 +20,6 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 import matplotlib.pyplot as plt
 from sklearn import metrics
-import scikitplot as skplt
 from sklearn.metrics import confusion_matrix
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))  # .../somalogic
@@ -236,13 +235,13 @@ if __name__ == "__main__":
             print(f'{X_choice} {outcome}:\n {cf_matrix}')
 
         elif X_choice == 'baseline' and outcome == 'A3':
-            threshold = 0.5126246720005565
+            threshold = 0.41681383043164943
             y_pred = (model.predict_proba(X_test_transf)[:, 1] > threshold).astype('float')
             cf_matrix = confusion_matrix(y, y_pred)
             print(f'{X_choice} {outcome}:\n {cf_matrix}')
 
         elif X_choice == 'all_proteins' and outcome == 'A3':
-            threshold = 0.5308773387538612
+            threshold = 0.48622072732991467
             y_pred = (model.predict_proba(X_test_transf)[:, 1] > threshold).astype('float')
             cf_matrix = confusion_matrix(y, y_pred)
             print(f'{X_choice} {outcome}:\n {cf_matrix}')
