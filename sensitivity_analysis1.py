@@ -36,7 +36,6 @@ from plotting import plot_auc
 from plotting import plot_age_distribution
 from plotting import plot_protein_level_distribution
 
-sns.set_theme()
 from sklearn.metrics import plot_roc_curve
 from sklearn.metrics import auc
 from sklearn.model_selection import RepeatedStratifiedKFold
@@ -518,7 +517,6 @@ def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
     if model_type == 'lasso':
         file_to_save = f'{save_dir}/{data}_{outcome}_{model_type}_train_auc.png'
 
-        sns.set_theme()
         # Here are some plot styles, which primarily make this plot larger for display purposes.
         plotting_params = {'axes.labelsize': 24,
                            'legend.fontsize': 24,
@@ -533,6 +531,9 @@ def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
             cv_results = cv_model_results[choice]
             x = log_10_lamb
             y = list(cv_results['mean_val_score'])
+
+            arr = np.array(cv_results['std_val_score'])
+            ci_auc = 1.96 * (arr / math.sqrt(50))
 
             plt.plot(x, y, lw=4, color=colors[i], label=labels[i])
 
@@ -555,8 +556,8 @@ def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
                 plt.annotate(f'($\lambda$={xmax:.2f}, AUC={ymax:.3f})',
                          (log_10_lamb[y.index(max(y))], max(y) + 0.01), fontsize=20)
 
-            plt.fill_between(log_10_lamb, np.array(cv_results['mean_val_score']) - np.array(cv_results['std_val_score']),
-                             np.array(cv_results['mean_val_score']) + np.array(cv_results['std_val_score']),
+            plt.fill_between(log_10_lamb, np.array(cv_results['mean_val_score']) - ci_auc,
+                             np.array(cv_results['mean_val_score']) + ci_auc,
                              alpha=0.1, color=colors[i])
 
         plt.ylim(bottom=0.4)
@@ -587,7 +588,6 @@ def plot_auc(model_type, data, outcome, hyperparams, cv_model_results, colors):
             # df = pd.DataFrame(lst, columns=log_10_lamb[::-1])
             # print(df)
             #
-            # sns.set_theme()
             # # Here are some plot styles, which primarily make this plot larger for display purposes.
             # plotting_params = {'axes.labelsize': 18,
             #                    'legend.fontsize': 16,
@@ -740,7 +740,7 @@ def plot_nonzero_coefficients(type, x_val, y_val, data, outcome, model_type, X_c
     coef_dir = os.path.join(PLOTS_DIR, 'sensitivity_analysis1', 'model_coef')
     os.makedirs(coef_dir, exist_ok=True)
 
-    sns.set_theme(style="whitegrid")
+    sns.set_theme(style="white")
 
     fig, ax = plt.subplots(figsize=(10, 8))
     if X_choice in ['all_proteins', 'fdr_sig_proteins']:
